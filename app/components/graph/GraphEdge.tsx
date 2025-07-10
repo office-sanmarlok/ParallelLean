@@ -29,61 +29,29 @@ export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
     AREA_ORDER.indexOf(targetNode.area)
   )
 
-  // エッジタイプごとのスタイル
+  // エッジタイプごとのスタイル（統一デザイン）
   const getEdgeStyle = () => {
-    switch (edge.type) {
-      case 'reference':
-        return {
-          stroke: '#6B7280',
-          strokeWidth: 2,
-          dash: [5, 5],
-        }
-      case 'tag':
-        return {
-          stroke: '#9CA3AF',
-          strokeWidth: 1.5,
-        }
-      case 'flow':
-        return {
-          stroke: '#3B82F6',
-          strokeWidth: 3,
-          opacity: 0.8,
-        }
-      case 'dependency':
-        return {
-          stroke: '#EF4444',
-          strokeWidth: 2,
-          dash: [10, 5],
-        }
-      case 'improvement':
-        return {
-          stroke: '#F59E0B',
-          strokeWidth: 2,
-        }
-      default:
-        return {
-          stroke: '#000000',
-          strokeWidth: 1,
-        }
+    // 仮想エッジ（ボタンノード用）は破線
+    if (edge.id.startsWith('virtual-')) {
+      return {
+        stroke: '#9CA3AF',
+        strokeWidth: 1,
+        dash: [3, 3],
+        opacity: 0.5,
+      }
+    }
+    
+    // 通常のエッジは全て同じスタイル
+    return {
+      stroke: '#6B7280',
+      strokeWidth: 1.5,
+      opacity: 0.6,
     }
   }
 
   const style = getEdgeStyle()
-  const isDependency = edge.type === 'dependency'
 
-  // 矢印付きか線のみか
-  if (isDependency || edge.type === 'flow') {
-    return (
-      <Arrow
-        points={[sourcePos.x, sourcePos.y, targetPos.x, targetPos.y]}
-        {...style}
-        pointerLength={10}
-        pointerWidth={10}
-        fill={style.stroke}
-      />
-    )
-  }
-
+  // 全て線のみ（矢印なし）で統一
   return (
     <Line
       points={[sourcePos.x, sourcePos.y, targetPos.x, targetPos.y]}

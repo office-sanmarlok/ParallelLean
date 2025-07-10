@@ -34,8 +34,27 @@ export function useUnifiedForceSimulation() {
       return
     }
 
-    // エッジをシミュレーション用に変換
-    const simulationEdges = edges
+    // ボタンノード用の仮想エッジを作成
+    const virtualEdges: any[] = []
+    virtualNodes.forEach(vNode => {
+      const metadata = vNode.metadata as any
+      if (metadata?.parentId) {
+        virtualEdges.push({
+          id: `virtual-edge-${vNode.id}`,
+          source_id: metadata.parentId,
+          target_id: vNode.id,
+          type: 'virtual',
+          is_branch: false,
+          is_merge: false,
+          created_at: new Date().toISOString(),
+          branch_from: null,
+          merge_to: null
+        })
+      }
+    })
+
+    // エッジをシミュレーション用に変換（通常のエッジ + 仮想エッジ）
+    const simulationEdges = [...edges, ...virtualEdges]
       .filter(e => {
         const source = simulationNodes.find(n => n.id === e.source_id)
         const target = simulationNodes.find(n => n.id === e.target_id)
@@ -66,9 +85,19 @@ export function useUnifiedForceSimulation() {
           const source = simulationNodes.find(n => n.id === (d as any).source.id)
           const target = simulationNodes.find(n => n.id === (d as any).target.id)
           
+          // 仮想エッジ（ボタンノード）は短めの距離
+          if ((d as any).type === 'virtual') {
+            return 80
+          }
+          // ProposalとTask間は非常に長い距離
+          if ((source?.type === 'proposal' && target?.type === 'task') ||
+              (source?.type === 'task' && target?.type === 'proposal')) {
+            return 500
+          }
+          
           // エリアが異なる場合は長めの距離
           if (source?.area !== target?.area) {
-            return 200
+            return 300
           }
           // 同じエリア内の場合
           return 100
@@ -77,10 +106,27 @@ export function useUnifiedForceSimulation() {
           const source = simulationNodes.find(n => n.id === (d as any).source.id)
           const target = simulationNodes.find(n => n.id === (d as any).target.id)
           
+          // 仮想エッジ（ボタンノード）は強い結合
+          if ((d as any).type === 'virtual') {
+            return 0.9
+          }
+          
+          // ProposalとTask間のリンクは非常に弱くする
+          if ((source?.type === 'proposal' && target?.type === 'task') ||
+              (source?.type === 'task' && target?.type === 'proposal')) {
+            return 0.05
+          }
+          
+          // エリアをまたぐリンクは弱い結合
+          if (source?.area !== target?.area) {
+            return 0.1
+          }
+          
           // flow タイプのエッジは強い結合
           if ((d as any).type === 'flow') {
             return 0.8
           }
+          
           // その他のエッジは弱い結合
           return 0.3
         })
@@ -92,56 +138,8 @@ export function useUnifiedForceSimulation() {
           
           const areaBounds = getAreaBounds(node.area)
           
-          // ボタンノード：親ノードに追従（固定位置）
-          if (node.id.startsWith('virtual-') || node.type.includes('button')) {
-            // 親ノードを探す
-            const parentEdges = simulationEdges.filter(e => e.target_id === node.id)
-            if (parentEdges.length > 0) {
-              const parentNode = simulationNodes.find(n => n.id === parentEdges[0].source_id)
-              if (parentNode && parentNode.x !== undefined && parentNode.y !== undefined) {
-                // ボタンの種類に応じて相対位置を設定
-                let offsetX = 100, offsetY = 0
-                
-                if (node.id.includes('delete')) {
-                  offsetY = node.area === 'build' ? -60 : 0
-                } else if (node.id.includes('tag')) {
-                  offsetY = node.area === 'build' ? -60 : -50
-                } else if (node.id.includes('add')) {
-                  offsetY = node.area === 'build' ? -20 : 0
-                } else if (node.id.includes('link')) {
-                  offsetY = 20
-                } else if (node.id.includes('status')) {
-                  offsetY = 60
-                } else if (node.id.includes('project')) {
-                  offsetY = 50
-                } else if (node.id.includes('research')) {
-                  offsetY = 0
-                } else if (node.id.includes('memo')) {
-                  offsetY = 40
-                } else if (node.id.includes('build')) {
-                  offsetY = 80
-                } else if (node.id.includes('mvp')) {
-                  offsetY = 100
-                }
-                
-                // Taskノードのボタンは右側に配置
-                if (parentNode.type === 'task') {
-                  offsetX = 80
-                }
-                
-                // 親ノードの位置に基づいて配置
-                node.x = parentNode.x + offsetX
-                node.y = parentNode.y + offsetY
-                
-                // 速度をリセット
-                node.vx = 0
-                node.vy = 0
-              }
-            }
-          }
-          
-          // KnowledgeBaseエリアのノード：自由配置（力なし）
-          else if (node.area === 'knowledge_base') {
+          // KnowledgeBaseエリアのノード（ボタンノード含む）：自由配置（力なし）
+          if (node.area === 'knowledge_base') {
             // 何も力を適用しない
           }
           
@@ -236,4 +234,42 @@ export function useUnifiedForceSimulation() {
       delete (window as any).__unifiedSimulationHandleDragEnd
     }
   }, [nodes.length, edges.length, virtualNodes.length]) // ノード・エッジ・バーチャルノードの数が変わったときのみ再計算
+  
+  // ノードの位置が更新されたときにシミュレーション内のノードも更新
+  useEffect(() => {
+    if (!simulationRef.current) return
+    
+    const simulationNodes = simulationRef.current.nodes()
+    
+    // 各ノードの位置を更新
+    nodes.forEach(node => {
+      const simNode = simulationNodes.find((n: SimulationNode) => n.id === node.id)
+      if (simNode) {
+        const pos = typeof node.position === 'object' && node.position !== null
+          ? (node.position as any)
+          : { x: 0, y: 0 }
+        
+        // ドラッグ中でない場合のみ位置を更新
+        if (simNode.fx === null || simNode.fx === undefined) {
+          simNode.x = pos.x
+          simNode.y = pos.y
+        }
+      }
+    })
+    
+    virtualNodes.forEach(node => {
+      const simNode = simulationNodes.find((n: SimulationNode) => n.id === node.id)
+      if (simNode) {
+        const pos = typeof node.position === 'object' && node.position !== null
+          ? (node.position as any)
+          : { x: 0, y: 0 }
+        
+        simNode.x = pos.x
+        simNode.y = pos.y
+      }
+    })
+    
+    // シミュレーションを再開（アルファ値は低めに）
+    simulationRef.current.alpha(0.1).restart()
+  }, [nodes, virtualNodes])
 }

@@ -287,6 +287,66 @@ export function createButtonNodes(parentNode: Node, allNodes: Node[] | null = nu
     ]
   }
   
+  // Researchノードの場合は削除ボタンのみ
+  if (parentNode.type === 'research') {
+    return [
+      createVirtualNode({
+        id: `virtual-research-delete-${parentNode.id}`,
+        type: 'delete_button' as any,
+        area: 'idea_stock',
+        title: '×',
+        position: {
+          x: parentPos.x + 80,
+          y: parentPos.y
+        },
+        metadata: { 
+          parentId: parentNode.id, 
+          buttonType: 'delete' as ButtonType
+        }
+      })
+    ]
+  }
+  
+  // ISTagノードの場合は削除ボタンのみ
+  if (parentNode.type === 'is_tag') {
+    return [
+      createVirtualNode({
+        id: `virtual-istag-delete-${parentNode.id}`,
+        type: 'delete_button' as any,
+        area: 'idea_stock',
+        title: '×',
+        position: {
+          x: parentPos.x + 60,
+          y: parentPos.y
+        },
+        metadata: { 
+          parentId: parentNode.id, 
+          buttonType: 'delete' as ButtonType
+        }
+      })
+    ]
+  }
+  
+  // Improvementノードの場合は削除ボタンのみ
+  if (parentNode.type === 'improvement') {
+    return [
+      createVirtualNode({
+        id: `virtual-improvement-delete-${parentNode.id}`,
+        type: 'delete_button' as any,
+        area: 'learn',
+        title: '×',
+        position: {
+          x: parentPos.x + 80,
+          y: parentPos.y
+        },
+        metadata: { 
+          parentId: parentNode.id, 
+          buttonType: 'delete' as ButtonType
+        }
+      })
+    ]
+  }
+  
   return []
 }
 
@@ -311,90 +371,102 @@ export function getButtonNodeStyle(node: Node, isHovered: boolean) {
   switch (node.type) {
     case 'tag_button':
       return {
-        fill: isHovered ? '#E5E7EB' : '#F3F4F6',
-        stroke: '#9CA3AF',
+        fill: isHovered ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+        stroke: '#3B82F6',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'delete_button':
       return {
-        fill: isHovered ? '#FEE2E2' : '#FEF2F2',
-        stroke: '#F87171',
+        fill: isHovered ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+        stroke: '#EF4444',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'project_button':
       return {
-        fill: isHovered ? '#DBEAFE' : '#EFF6FF',
-        stroke: '#60A5FA',
+        fill: isHovered ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
+        stroke: '#22C55E',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'new_memo_button':
       return {
-        fill: isHovered ? '#E5E7EB' : '#F3F4F6',
-        stroke: '#9CA3AF',
+        fill: isHovered ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+        stroke: '#3B82F6',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'research_button':
       return {
-        fill: isHovered ? '#FEF3C7' : '#FFFBEB',
-        stroke: '#F59E0B',
+        fill: isHovered ? 'rgba(251, 146, 60, 0.2)' : 'rgba(251, 146, 60, 0.1)',
+        stroke: '#FB923C',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'memo_link_button':
       return {
-        fill: isHovered ? '#E0E7FF' : '#EEF2FF',
+        fill: isHovered ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
         stroke: '#6366F1',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'build_button':
       return {
-        fill: isHovered ? '#D1FAE5' : '#ECFDF5',
+        fill: isHovered ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)',
         stroke: '#10B981',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'task_link_button':
       return {
-        fill: isHovered ? '#E0E7FF' : '#EEF2FF',
+        fill: isHovered ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
         stroke: '#6366F1',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'add_task_button':
       return {
-        fill: isHovered ? '#E5E7EB' : '#F3F4F6',
-        stroke: '#9CA3AF',
+        fill: isHovered ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+        stroke: '#3B82F6',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'status_button':
       return {
-        fill: isHovered ? '#FEF3C7' : '#FFFBEB',
-        stroke: '#F59E0B',
+        fill: isHovered ? 'rgba(251, 146, 60, 0.2)' : 'rgba(251, 146, 60, 0.1)',
+        stroke: '#FB923C',
         strokeWidth: 2,
         dash: [5, 5],
+        opacity: 0.8
       }
     case 'mvp_button':
       return {
-        fill: isHovered ? '#FDE68A' : '#FEF3C7',
-        stroke: '#F59E0B',
+        fill: isHovered ? 'rgba(251, 191, 36, 0.3)' : 'rgba(251, 191, 36, 0.2)',
+        stroke: '#FBBF24',
         strokeWidth: 3,
         dash: [5, 5],
+        opacity: 0.9,
         shadowBlur: 10,
-        shadowColor: '#F59E0B',
+        shadowColor: '#FBBF24',
         shadowOpacity: 0.3,
       }
     case 'debug_button':
       return {
-        fill: isHovered ? '#FCA5A5' : '#FEE2E2',
+        fill: isHovered ? 'rgba(220, 38, 38, 0.2)' : 'rgba(220, 38, 38, 0.1)',
         stroke: '#DC2626',
         strokeWidth: 2,
         dash: [3, 3],
+        opacity: 0.8
       }
     default:
       return {}

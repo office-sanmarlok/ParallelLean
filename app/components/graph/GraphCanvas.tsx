@@ -630,6 +630,78 @@ export function GraphCanvas() {
     }
   }
   
+  // Researchノードを削除
+  const handleDeleteResearch = async (researchId: string) => {
+    const researchNode = nodes.find(n => n.id === researchId && n.type === 'research')
+    if (!researchNode) return
+    
+    try {
+      // データベースから削除
+      await supabase
+        .from('nodes')
+        .delete()
+        .eq('id', researchId)
+      
+      // ストアから削除
+      deleteNode(researchId)
+      
+      // UIをリセット
+      setSelectedNode(null)
+      setVirtualNodes([])
+      setShowTagButton(null)
+    } catch (error) {
+      console.error('Failed to delete research:', error)
+    }
+  }
+  
+  // ISTagノードを削除
+  const handleDeleteISTag = async (isTagId: string) => {
+    const isTagNode = nodes.find(n => n.id === isTagId && n.type === 'is_tag')
+    if (!isTagNode) return
+    
+    try {
+      // データベースから削除
+      await supabase
+        .from('nodes')
+        .delete()
+        .eq('id', isTagId)
+      
+      // ストアから削除
+      deleteNode(isTagId)
+      
+      // UIをリセット
+      setSelectedNode(null)
+      setVirtualNodes([])
+      setShowTagButton(null)
+    } catch (error) {
+      console.error('Failed to delete IS tag:', error)
+    }
+  }
+  
+  // Improvementノードを削除
+  const handleDeleteImprovement = async (improvementId: string) => {
+    const improvementNode = nodes.find(n => n.id === improvementId && n.type === 'improvement')
+    if (!improvementNode) return
+    
+    try {
+      // データベースから削除
+      await supabase
+        .from('nodes')
+        .delete()
+        .eq('id', improvementId)
+      
+      // ストアから削除
+      deleteNode(improvementId)
+      
+      // UIをリセット
+      setSelectedNode(null)
+      setVirtualNodes([])
+      setShowTagButton(null)
+    } catch (error) {
+      console.error('Failed to delete improvement:', error)
+    }
+  }
+  
   // 全Taskノードが完了しているかチェック
   const checkAllTasksCompleted = () => {
     // 最新の状態を取得
@@ -972,6 +1044,18 @@ export function GraphCanvas() {
       const metadata = node.metadata as any
       handleForceCompleteMeasurement(metadata?.parentId)
       return
+    } else if (node.id.startsWith('virtual-research-delete-')) {
+      const metadata = node.metadata as any
+      handleDeleteResearch(metadata?.parentId)
+      return
+    } else if (node.id.startsWith('virtual-istag-delete-')) {
+      const metadata = node.metadata as any
+      handleDeleteISTag(metadata?.parentId)
+      return
+    } else if (node.id.startsWith('virtual-improvement-delete-')) {
+      const metadata = node.metadata as any
+      handleDeleteImprovement(metadata?.parentId)
+      return
     }
     
     // 既に選択されているノード以外がクリックされた場合、ボタンノードを削除
@@ -999,23 +1083,42 @@ export function GraphCanvas() {
       setShowTagButton(node.id)
       const buttons = createButtonNodes(node, nodes)
       setVirtualNodes(buttons)
+    } else if (node.type === 'research' && node.area === 'idea_stock') {
+      setShowTagButton(node.id)
+      const buttons = createButtonNodes(node, nodes)
+      setVirtualNodes(buttons)
+    } else if (node.type === 'is_tag' && node.area === 'idea_stock') {
+      setShowTagButton(node.id)
+      const buttons = createButtonNodes(node, nodes)
+      setVirtualNodes(buttons)
+    } else if (node.type === 'improvement' && node.area === 'learn') {
+      setShowTagButton(node.id)
+      const buttons = createButtonNodes(node, nodes)
+      setVirtualNodes(buttons)
     } else {
       setShowTagButton(null)
       setVirtualNodes([])
     }
     
-    // エディタが必要なノードタイプの場合はエディタを開く（Memoノード以外）
-    const editableTypes = ['proposal', 'research', 'task', 'mvp', 'improvement']
-    if (editableTypes.includes(node.type)) {
-      setEditorNode(node)
-    }
+    // シングルクリック時はエディタを開かない（ボタンノードの表示のみ）
   }
 
   // ノードダブルクリック
   const handleNodeDblClick = (node: Node) => {
-    // Memoノードの場合はエディタを開く
-    if (node.type === 'memo') {
+    // エディタが必要なノードタイプの場合はエディタを開く
+    const editableTypes = ['memo', 'proposal', 'research', 'task', 'mvp', 'improvement']
+    if (editableTypes.includes(node.type)) {
       setEditorNode(node)
+    }
+    // KBTag、ISTagの場合は名前編集（TODO: 実装予定）
+    else if (node.type === 'kb_tag' || node.type === 'is_tag') {
+      // TODO: タグ名編集モーダルを表示
+      console.log('Tag name editing not implemented yet')
+    }
+    // Dashboardの場合はダッシュボードを開く（TODO: 実装予定）
+    else if (node.type === 'dashboard') {
+      // TODO: ダッシュボード画面を表示
+      console.log('Dashboard view not implemented yet')
     }
   }
 

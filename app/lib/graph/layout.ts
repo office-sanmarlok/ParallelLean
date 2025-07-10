@@ -37,6 +37,11 @@ export const NODE_SIZES = {
   research_button: 40,
   memo_link_button: 40,
   build_button: 40,
+  task_link_button: 40,
+  add_task_button: 40,
+  status_button: 40,
+  mvp_button: 40,
+  debug_button: 40,
 }
 
 // エリアの境界を計算

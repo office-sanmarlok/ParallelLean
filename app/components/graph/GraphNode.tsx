@@ -63,6 +63,12 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
       case 'new_memo_button':
       case 'research_button':
       case 'memo_link_button':
+      case 'build_button':
+      case 'task_link_button':
+      case 'add_task_button':
+      case 'status_button':
+      case 'mvp_button':
+      case 'debug_button':
         return getButtonNodeStyle(node, isHovered)
       case 'proposal':
       case 'research':
@@ -116,11 +122,6 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
 
   // ドラッグ中の処理
   const handleDragMove = (e: any) => {
-    // ボタンノードはドラッグ不可
-    if (node.id.startsWith('virtual-')) {
-      return
-    }
-    
     if (node.area === 'knowledge_base' || node.area === 'idea_stock' || node.area === 'build' || node.area === 'measure' || node.area === 'learn') {
       const newPosition = {
         x: e.target.x(),
@@ -144,6 +145,7 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
       
       // 即座にストアを更新
       updateNode(node.id, { position: constrainedPosition })
+      
     }
   }
 
@@ -250,7 +252,7 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
           onDblClick()
         }
       }}
-      draggable={(node.area === 'knowledge_base' || node.area === 'idea_stock' || node.area === 'build' || node.area === 'measure' || node.area === 'learn') && !node.id.startsWith('virtual-')}
+      draggable={(node.area === 'knowledge_base' || node.area === 'idea_stock' || node.area === 'build' || node.area === 'measure' || node.area === 'learn')}
       onMouseDown={(e) => {
         // 全てのノードでマウスダウン時にステージのドラッグを無効化
         const stage = e.target.getStage()
@@ -270,19 +272,14 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
         }
       }}
       onDragStart={(e) => {
-        // ボタンノードはドラッグ不可
-        if (node.id.startsWith('virtual-')) {
-          e.target.stopDrag()
-          return
-        }
-        
         setIsDragging(true)
         onDragStart?.()
-        // Force Simulationにドラッグ開始を通知
-        if (node.area === 'knowledge_base' && (window as any).__forceSimulationDragStart) {
-          (window as any).__forceSimulationDragStart(node.id)
-        } else if (node.area === 'idea_stock' && (window as any).__ideaStockSimulationDragStart) {
-          (window as any).__ideaStockSimulationDragStart(node.id)
+        // 統合Force Simulationにドラッグ開始を通知
+        if ((window as any).__unifiedSimulationHandleDrag) {
+          const currentPos = typeof node.position === 'object' && node.position !== null
+            ? (node.position as any)
+            : { x: 0, y: 0 }
+          ;(window as any).__unifiedSimulationHandleDrag(node.id, currentPos.x, currentPos.y)
         }
         // ステージのドラッグが確実に無効になっているか再確認
         const stage = e.target.getStage()
@@ -293,18 +290,11 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
       }}
       onDragMove={handleDragMove}
       onDragEnd={(e) => {
-        // ボタンノードはドラッグ不可
-        if (node.id.startsWith('virtual-')) {
-          return
-        }
-        
         handleDragEnd(e)
         onDragEnd?.()
-        // Force Simulationにドラッグ終了を通知
-        if (node.area === 'knowledge_base' && (window as any).__forceSimulationDragEnd) {
-          (window as any).__forceSimulationDragEnd(node.id)
-        } else if (node.area === 'idea_stock' && (window as any).__ideaStockSimulationDragEnd) {
-          (window as any).__ideaStockSimulationDragEnd(node.id)
+        // 統合Force Simulationにドラッグ終了を通知
+        if ((window as any).__unifiedSimulationHandleDragEnd) {
+          (window as any).__unifiedSimulationHandleDragEnd(node.id)
         }
         // ステージのドラッグを再度有効化
         const stage = e.target.getStage()
@@ -428,6 +418,99 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
           />
         </Group>
       )}
+
+      {/* ビルドボタンのアイコン（下矢印） */}
+      {node.type === 'build_button' && (
+        <Group listening={false}>
+          <Line
+            points={[0, -8, 0, 6]}
+            stroke="#10B981"
+            strokeWidth={3}
+            lineCap="round"
+          />
+          <Line
+            points={[-6, 0, 0, 6, 6, 0]}
+            stroke="#10B981"
+            strokeWidth={3}
+            lineCap="round"
+            lineJoin="round"
+          />
+        </Group>
+      )}
+
+      {/* タスクリンクボタンのアイコン（チェーン） */}
+      {node.type === 'task_link_button' && (
+        <Group listening={false}>
+          <Text
+            x={-8}
+            y={-8}
+            text="🔗"
+            fontSize={16}
+            align="center"
+            verticalAlign="middle"
+          />
+        </Group>
+      )}
+
+      {/* タスク追加ボタンのアイコン（プラス） */}
+      {node.type === 'add_task_button' && (
+        <Group listening={false}>
+          <Line
+            points={[-6, 0, 6, 0]}
+            stroke="#3B82F6"
+            strokeWidth={3}
+            lineCap="round"
+          />
+          <Line
+            points={[0, -6, 0, 6]}
+            stroke="#3B82F6"
+            strokeWidth={3}
+            lineCap="round"
+          />
+        </Group>
+      )}
+
+      {/* ステータスボタンのアイコン（半円） */}
+      {node.type === 'status_button' && (
+        <Group listening={false}>
+          <Text
+            x={-8}
+            y={-8}
+            text="◐"
+            fontSize={16}
+            align="center"
+            verticalAlign="middle"
+          />
+        </Group>
+      )}
+
+      {/* MVPボタンのアイコン（星） */}
+      {node.type === 'mvp_button' && (
+        <Group listening={false}>
+          <Text
+            x={-8}
+            y={-8}
+            text="⭐"
+            fontSize={16}
+            align="center"
+            verticalAlign="middle"
+          />
+        </Group>
+      )}
+
+      {/* デバッグボタンのアイコン（早送り） */}
+      {node.type === 'debug_button' && (
+        <Group listening={false}>
+          <Text
+            x={-8}
+            y={-8}
+            text="⏩"
+            fontSize={16}
+            align="center"
+            verticalAlign="middle"
+          />
+        </Group>
+      )}
       
       
       {/* 選択時のハイライト */}
@@ -482,23 +565,6 @@ export function GraphNode({ node, onClick, onDblClick, selected, onDragStart, on
         />
       )}
       
-      {/* タスクステータスインジケーター */}
-      {node.type === 'task' && (
-        <Group x={size / 2 - 10} y={-size / 2 + 5}>
-          <Circle
-            x={0}
-            y={0}
-            radius={5}
-            fill={
-              node.task_status === 'completed' ? '#10B981' :    // 完了: 緑
-              node.task_status === 'incomplete' ? '#EF4444' :  // 未完了: 赤
-              '#F59E0B'  // 保留: 黄色
-            }
-            stroke="#000000"
-            strokeWidth={1}
-          />
-        </Group>
-      )}
     </Group>
   )
 }
