@@ -10,23 +10,24 @@ export function TagCreationTool() {
   const [tagName, setTagName] = useState('')
   const supabase = createClient()
   const { addNode, addEdge } = useGraphStore()
-  
+
   // タグ作成可能なノードかチェック
-  const canCreateTag = selectedNode && 
+  const canCreateTag =
+    selectedNode &&
     ((selectedNode.type === 'memo' && selectedNode.area === 'knowledge_base') ||
-     (selectedNode.type === 'proposal' && selectedNode.area === 'idea_stock'))
-  
+      (selectedNode.type === 'proposal' && selectedNode.area === 'idea_stock'))
+
   const handleCreateTag = async () => {
     if (!selectedNode || !tagName.trim()) return
-    
+
     try {
       // タグノードを作成
       const tagType = selectedNode.area === 'knowledge_base' ? 'kb_tag' : 'is_tag'
       const tagPosition = {
         x: (selectedNode.position as any).x + 150,
-        y: (selectedNode.position as any).y
+        y: (selectedNode.position as any).y,
       }
-      
+
       const { data: newTag, error: tagError } = await supabase
         .from('nodes')
         .insert({
@@ -39,9 +40,9 @@ export function TagCreationTool() {
         })
         .select()
         .single()
-        
+
       if (tagError) throw tagError
-      
+
       // エッジを作成
       const { data: newEdge, error: edgeError } = await supabase
         .from('edges')
@@ -54,13 +55,13 @@ export function TagCreationTool() {
         })
         .select()
         .single()
-        
+
       if (edgeError) throw edgeError
-      
+
       // ストアに追加
       addNode(newTag)
       addEdge(newEdge)
-      
+
       // リセット
       setTagName('')
       setIsCreating(false)
@@ -68,28 +69,32 @@ export function TagCreationTool() {
       console.error('Failed to create tag:', error)
     }
   }
-  
+
   if (!canCreateTag) return null
-  
+
   if (isCreating) {
     return (
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        right: '16px',
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        padding: '16px',
-        zIndex: 10,
-        minWidth: '250px'
-      }}>
-        <h3 style={{
-          fontSize: '14px',
-          fontWeight: '500',
-          color: '#111827',
-          marginBottom: '8px'
-        }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '16px',
+          right: '16px',
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          zIndex: 10,
+          minWidth: '250px',
+        }}
+      >
+        <h3
+          style={{
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#111827',
+            marginBottom: '8px',
+          }}
+        >
           新規タグ作成
         </h3>
         <input
@@ -103,7 +108,7 @@ export function TagCreationTool() {
             marginBottom: '12px',
             border: '1px solid #D1D5DB',
             borderRadius: '6px',
-            fontSize: '14px'
+            fontSize: '14px',
           }}
           autoFocus
           onKeyDown={(e) => {
@@ -122,7 +127,7 @@ export function TagCreationTool() {
               borderRadius: '6px',
               border: 'none',
               fontSize: '14px',
-              cursor: tagName.trim() ? 'pointer' : 'not-allowed'
+              cursor: tagName.trim() ? 'pointer' : 'not-allowed',
             }}
           >
             作成
@@ -136,7 +141,7 @@ export function TagCreationTool() {
               borderRadius: '6px',
               border: 'none',
               fontSize: '14px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             キャンセル
@@ -145,18 +150,20 @@ export function TagCreationTool() {
       </div>
     )
   }
-  
+
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '16px',
-      right: '16px',
-      backgroundColor: '#ffffff',
-      borderRadius: '8px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      padding: '16px',
-      zIndex: 10
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        bottom: '16px',
+        right: '16px',
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        padding: '16px',
+        zIndex: 10,
+      }}
+    >
       <button
         onClick={() => setIsCreating(true)}
         style={{
@@ -166,7 +173,7 @@ export function TagCreationTool() {
           borderRadius: '6px',
           border: 'none',
           fontSize: '14px',
-          cursor: 'pointer'
+          cursor: 'pointer',
         }}
       >
         タグを追加

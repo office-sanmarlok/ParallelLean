@@ -7,18 +7,18 @@ export const env = {
 // 開発時のみ環境変数をチェック
 if (process.env.NODE_ENV === 'development') {
   const missingVars: string[] = []
-  
+
   if (!env.NEXT_PUBLIC_SUPABASE_URL) {
     missingVars.push('NEXT_PUBLIC_SUPABASE_URL')
   }
   if (!env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     missingVars.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   }
-  
+
   if (missingVars.length > 0) {
     console.error(
       `Missing required environment variables: ${missingVars.join(', ')}\n` +
-      'Please check your .env.local file and ensure all required variables are set.'
+        'Please check your .env.local file and ensure all required variables are set.'
     )
   }
 }
@@ -27,14 +27,14 @@ if (process.env.NODE_ENV === 'development') {
 export const supabaseConfig = {
   url: env.NEXT_PUBLIC_SUPABASE_URL,
   anonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  
+
   // オプション設定
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
-  
+
   // リアルタイム設定
   realtime: {
     params: {

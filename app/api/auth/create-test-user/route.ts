@@ -10,8 +10,8 @@ export async function POST() {
       {
         auth: {
           autoRefreshToken: false,
-          persistSession: false
-        }
+          persistSession: false,
+        },
       }
     )
 
@@ -21,20 +21,20 @@ export async function POST() {
       password: 'password123',
       email_confirm: true,
       user_metadata: {
-        full_name: 'Test User 2'
-      }
+        full_name: 'Test User 2',
+      },
     })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'テストユーザーが作成されました',
       user: {
         id: data.user?.id,
-        email: data.user?.email
-      }
+        email: data.user?.email,
+      },
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

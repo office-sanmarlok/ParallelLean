@@ -5,15 +5,9 @@ import { useGraphStore } from '@/app/stores/graphStore'
 import { createClient } from '@/app/lib/supabase/client'
 
 export function useLinkCreation() {
-  const { 
-    selectedNode, 
-    linkingMode, 
-    linkingSource, 
-    setLinkingMode, 
-    setLinkingSource,
-    addEdge 
-  } = useGraphStore()
-  
+  const { selectedNode, linkingMode, linkingSource, setLinkingMode, setLinkingSource, addEdge } =
+    useGraphStore()
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -21,19 +15,19 @@ export function useLinkCreation() {
       // Ctrl/Cmd + L でリンク作成モード開始
       if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
         e.preventDefault()
-        
+
         if (selectedNode && !linkingMode) {
           setLinkingMode(true)
           setLinkingSource(selectedNode)
         }
       }
-      
+
       // Escapeでリンク作成モードキャンセル
       if (e.key === 'Escape' && linkingMode) {
         setLinkingMode(false)
         setLinkingSource(null)
       }
-      
+
       // Enterでリンク作成確定
       if (e.key === 'Enter' && linkingMode && linkingSource && selectedNode) {
         if (selectedNode.id !== linkingSource.id) {
@@ -41,10 +35,10 @@ export function useLinkCreation() {
         }
       }
     }
-    
+
     const createLink = async () => {
       if (!linkingSource || !selectedNode) return
-      
+
       try {
         const { data: newEdge, error } = await supabase
           .from('edges')
@@ -74,5 +68,13 @@ export function useLinkCreation() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedNode, linkingMode, linkingSource, setLinkingMode, setLinkingSource, addEdge, supabase])
+  }, [
+    selectedNode,
+    linkingMode,
+    linkingSource,
+    setLinkingMode,
+    setLinkingSource,
+    addEdge,
+    supabase,
+  ])
 }

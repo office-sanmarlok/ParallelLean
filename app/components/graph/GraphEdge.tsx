@@ -12,20 +12,20 @@ interface GraphEdgeProps {
 }
 
 export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
-  const sourceNode = nodes.find(n => n.id === edge.source_id)
-  const targetNode = nodes.find(n => n.id === edge.target_id)
+  const sourceNode = nodes.find((n) => n.id === edge.source_id)
+  const targetNode = nodes.find((n) => n.id === edge.target_id)
 
   if (!sourceNode || !targetNode) return null
 
   // 座標を計算
   const sourcePos = calculateNodePosition(
-    sourceNode, 
-    undefined, 
+    sourceNode,
+    undefined,
     AREA_ORDER.indexOf(sourceNode.area)
   )
   const targetPos = calculateNodePosition(
-    targetNode, 
-    undefined, 
+    targetNode,
+    undefined,
     AREA_ORDER.indexOf(targetNode.area)
   )
 
@@ -40,7 +40,7 @@ export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
         opacity: 0.5,
       }
     }
-    
+
     // 通常のエッジは全て同じスタイル
     return {
       stroke: '#6B7280',
@@ -52,10 +52,5 @@ export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
   const style = getEdgeStyle()
 
   // 全て線のみ（矢印なし）で統一
-  return (
-    <Line
-      points={[sourcePos.x, sourcePos.y, targetPos.x, targetPos.y]}
-      {...style}
-    />
-  )
+  return <Line points={[sourcePos.x, sourcePos.y, targetPos.x, targetPos.y]} {...style} />
 }

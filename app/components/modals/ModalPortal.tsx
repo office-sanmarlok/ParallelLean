@@ -17,8 +17,5 @@ export function ModalPortal({ children }: ModalPortalProps) {
 
   if (!mounted) return null
 
-  return createPortal(
-    children,
-    document.body
-  )
+  return createPortal(children, document.body)
 }

@@ -5,10 +5,10 @@ import { Loading } from '@/app/components/ui/Loading'
 
 // Konvaコンポーネントを完全にクライアントサイドでのみロード
 const GraphCanvas = dynamic(
-  () => import('./GraphCanvas').then(mod => ({ default: mod.GraphCanvas })),
-  { 
+  () => import('./GraphCanvas').then((mod) => ({ default: mod.GraphCanvas })),
+  {
     ssr: false,
-    loading: () => <Loading />
+    loading: () => <Loading />,
   }
 )
 

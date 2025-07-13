@@ -11,18 +11,12 @@ export const metadata: Metadata = {
   description: 'チームでリーンスタートアップを並列実行するための共有ワークスペース',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
       <body className={inter.className}>
         <Providers>
-          <SupabaseProvider>
-            {children}
-          </SupabaseProvider>
+          <SupabaseProvider>{children}</SupabaseProvider>
         </Providers>
       </body>
     </html>

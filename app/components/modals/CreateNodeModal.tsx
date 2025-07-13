@@ -27,9 +27,9 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
   const [nodeType, setNodeType] = useState<NodeType>(AREA_NODE_TYPES[area][0])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const supabase = createClient()
-  const addNode = useGraphStore(state => state.addNode)
+  const addNode = useGraphStore((state) => state.addNode)
 
   // エリアが変わったらノードタイプもリセット
   useEffect(() => {
@@ -38,7 +38,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!title.trim()) {
       setError('タイトルは必須です')
       return
@@ -50,7 +50,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
     try {
       // ノードサイズを計算（タイプによって変える）
       const nodeSize = nodeType.includes('tag') ? 60 : 80
-      
+
       const { data: newNode, error: nodeError } = await supabase
         .from('nodes')
         .insert({
@@ -67,7 +67,6 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
 
       if (nodeError) throw nodeError
 
-
       // ストアに追加
       addNode(newNode)
 
@@ -81,211 +80,234 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
     }
   }
 
-  if (!isOpen) return null;
-  
+  if (!isOpen) return null
+
   return (
     <ModalPortal>
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 50,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         {/* オーバーレイ */}
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)'
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
           }}
           onClick={onClose}
         />
-        
+
         {/* モーダル本体 */}
-        <div style={{
-          position: 'relative',
-          backgroundColor: '#ffffff',
-          borderRadius: '8px',
-          padding: '24px',
-          maxWidth: '448px',
-          width: '100%',
-          margin: '0 16px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          zIndex: 60
-        }}>
-          <h3 style={{
-            fontSize: '18px',
-            fontWeight: '500',
-            color: '#111827',
-            marginBottom: '16px'
-          }}>
+        <div
+          style={{
+            position: 'relative',
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            padding: '24px',
+            maxWidth: '448px',
+            width: '100%',
+            margin: '0 16px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            zIndex: 60,
+          }}
+        >
+          <h3
+            style={{
+              fontSize: '18px',
+              fontWeight: '500',
+              color: '#111827',
+              marginBottom: '16px',
+            }}
+          >
             新規ノード作成 - {area}
           </h3>
-                
-                <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
-                  {/* ノードタイプ選択 */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <label htmlFor="type" style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '4px'
-                    }}>
-                      タイプ
-                    </label>
-                    <select
-                      id="type"
-                      value={nodeType}
-                      onChange={(e) => setNodeType(e.target.value as NodeType)}
-                      style={{
-                        marginTop: '4px',
-                        display: 'block',
-                        width: '100%',
-                        borderRadius: '6px',
-                        border: '1px solid #D1D5DB',
-                        backgroundColor: '#FFFFFF',
-                        color: '#111827',
-                        padding: '8px 12px',
-                        fontSize: '14px'
-                      }}
-                    >
-                      {AREA_NODE_TYPES[area].map((type) => (
-                        <option key={type} value={type}>
-                          {getNodeTypeLabel(type)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
 
-                  <div style={{ marginBottom: '16px' }}>
-                    <label htmlFor="title" style={{
-                      display: 'block',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      marginBottom: '4px'
-                    }}>
-                      タイトル
-                    </label>
-                    <input
-                      type="text"
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder={getPlaceholder(nodeType)}
-                      style={{
-                        marginTop: '4px',
-                        display: 'block',
-                        width: '100%',
-                        borderRadius: '6px',
-                        border: '1px solid #D1D5DB',
-                        backgroundColor: '#FFFFFF',
-                        color: '#111827',
-                        padding: '8px 12px',
-                        fontSize: '14px'
-                      }}
-                      autoFocus
-                    />
-                  </div>
+          <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
+            {/* ノードタイプ選択 */}
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="type"
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '4px',
+                }}
+              >
+                タイプ
+              </label>
+              <select
+                id="type"
+                value={nodeType}
+                onChange={(e) => setNodeType(e.target.value as NodeType)}
+                style={{
+                  marginTop: '4px',
+                  display: 'block',
+                  width: '100%',
+                  borderRadius: '6px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: '#FFFFFF',
+                  color: '#111827',
+                  padding: '8px 12px',
+                  fontSize: '14px',
+                }}
+              >
+                {AREA_NODE_TYPES[area].map((type) => (
+                  <option key={type} value={type}>
+                    {getNodeTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                  {/* タグ以外のノードには内容フィールドを表示 */}
-                  {!nodeType.includes('tag') && (
-                    <div style={{ marginBottom: '16px' }}>
-                      <label htmlFor="content" style={{
-                        display: 'block',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: '#374151',
-                        marginBottom: '4px'
-                      }}>
-                        内容
-                      </label>
-                      <textarea
-                        id="content"
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        rows={4}
-                        style={{
-                          marginTop: '4px',
-                          display: 'block',
-                          width: '100%',
-                          borderRadius: '6px',
-                          border: '1px solid #D1D5DB',
-                          backgroundColor: '#FFFFFF',
-                          color: '#111827',
-                          padding: '8px 12px',
-                          fontSize: '14px',
-                          resize: 'vertical'
-                        }}
-                      />
-                    </div>
-                  )}
+            <div style={{ marginBottom: '16px' }}>
+              <label
+                htmlFor="title"
+                style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '4px',
+                }}
+              >
+                タイトル
+              </label>
+              <input
+                type="text"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={getPlaceholder(nodeType)}
+                style={{
+                  marginTop: '4px',
+                  display: 'block',
+                  width: '100%',
+                  borderRadius: '6px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: '#FFFFFF',
+                  color: '#111827',
+                  padding: '8px 12px',
+                  fontSize: '14px',
+                }}
+                autoFocus
+              />
+            </div>
 
-                  {error && (
-                    <div style={{
-                      marginBottom: '16px',
-                      borderRadius: '6px',
-                      backgroundColor: '#FEE2E2',
-                      padding: '12px'
-                    }}>
-                      <p style={{
-                        fontSize: '14px',
-                        color: '#991B1B'
-                      }}>{error}</p>
-                    </div>
-                  )}
+            {/* タグ以外のノードには内容フィールドを表示 */}
+            {!nodeType.includes('tag') && (
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  htmlFor="content"
+                  style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '4px',
+                  }}
+                >
+                  内容
+                </label>
+                <textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows={4}
+                  style={{
+                    marginTop: '4px',
+                    display: 'block',
+                    width: '100%',
+                    borderRadius: '6px',
+                    border: '1px solid #D1D5DB',
+                    backgroundColor: '#FFFFFF',
+                    color: '#111827',
+                    padding: '8px 12px',
+                    fontSize: '14px',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            )}
 
-                  <div style={{
-                    marginTop: '24px',
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: '12px'
-                  }}>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      disabled={isLoading}
-                      style={{
-                        borderRadius: '6px',
-                        border: '1px solid #D1D5DB',
-                        backgroundColor: '#FFFFFF',
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: '#374151',
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.5 : 1
-                      }}
-                    >
-                      キャンセル
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      style={{
-                        borderRadius: '6px',
-                        backgroundColor: isLoading ? '#9CA3AF' : '#4F46E5',
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: '#FFFFFF',
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        border: 'none'
-                      }}
-                    >
-                      {isLoading ? '作成中...' : '作成'}
-                    </button>
-                  </div>
-                </form>
+            {error && (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  borderRadius: '6px',
+                  backgroundColor: '#FEE2E2',
+                  padding: '12px',
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: '14px',
+                    color: '#991B1B',
+                  }}
+                >
+                  {error}
+                </p>
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: '24px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                style={{
+                  borderRadius: '6px',
+                  border: '1px solid #D1D5DB',
+                  backgroundColor: '#FFFFFF',
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.5 : 1,
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                style={{
+                  borderRadius: '6px',
+                  backgroundColor: isLoading ? '#9CA3AF' : '#4F46E5',
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#FFFFFF',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  border: 'none',
+                }}
+              >
+                {isLoading ? '作成中...' : '作成'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </ModalPortal>

@@ -15,28 +15,29 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
   const { addNode, addEdge } = useGraphStore()
-  
-  const position = typeof parentNode.position === 'object' && parentNode.position !== null
-    ? (parentNode.position as any)
-    : { x: 0, y: 0 }
-  
+
+  const position =
+    typeof parentNode.position === 'object' && parentNode.position !== null
+      ? (parentNode.position as any)
+      : { x: 0, y: 0 }
+
   // ボタンノードの位置に表示
   const screenX = position.x + 100
   const screenY = position.y
-  
+
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-  
+
   const handleCreate = async (tagName: string) => {
     if (!tagName.trim()) return
-    
+
     try {
       // タイプとエリアを決定（親ノードがProposalならISTag、それ以外はKBTag）
       const isProposal = parentNode.type === 'proposal'
       const tagType = isProposal ? 'is_tag' : 'kb_tag'
       const tagArea = isProposal ? 'idea_stock' : 'knowledge_base'
-      
+
       // 既存のタグを確認
       const { data: existingTags } = await supabase
         .from('nodes')
@@ -45,9 +46,9 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
         .eq('area', tagArea)
         .eq('title', tagName.trim())
         .single()
-      
+
       let tagNode
-      
+
       if (existingTags) {
         // 既存のタグを使用
         tagNode = existingTags
@@ -55,9 +56,9 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
         // 新しいタグノードを作成
         const tagPosition = {
           x: position.x + 150,
-          y: position.y
+          y: position.y,
         }
-        
+
         const { data: newTag, error: tagError } = await supabase
           .from('nodes')
           .insert({
@@ -69,14 +70,14 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
           })
           .select()
           .single()
-          
+
         if (tagError) throw tagError
         tagNode = newTag
-        
+
         // 新しいノードの場合のみストアに追加
         addNode(tagNode)
       }
-      
+
       // 既存のエッジを確認
       const { data: existingEdge } = await supabase
         .from('edges')
@@ -85,7 +86,7 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
         .eq('target_id', tagNode.id)
         .eq('type', 'tag')
         .single()
-      
+
       if (!existingEdge) {
         // エッジを作成
         const { data: newEdge, error: edgeError } = await supabase
@@ -99,27 +100,27 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
           })
           .select()
           .single()
-          
+
         if (edgeError) throw edgeError
-        
+
         // ストアに追加
         addEdge(newEdge)
       }
-      
+
       onCreated()
     } catch (error) {
       console.error('Failed to create tag:', error)
     }
   }
-  
+
   return (
-    <div 
+    <div
       style={{
         position: 'fixed',
         left: `${screenX}px`,
         top: `${screenY}px`,
         zIndex: 100,
-        transform: 'translate(-50%, -50%)'
+        transform: 'translate(-50%, -50%)',
       }}
     >
       <input
@@ -133,7 +134,7 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
           backgroundColor: '#ffffff',
           fontSize: '14px',
           minWidth: '150px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {

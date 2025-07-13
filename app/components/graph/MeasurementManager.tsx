@@ -22,9 +22,10 @@ export function MeasurementManager() {
 
     try {
       // MVPの位置を取得
-      const mvpPosition = typeof selectedNode.position === 'object' && selectedNode.position !== null
-        ? (selectedNode.position as any)
-        : { x: 500, y: 1200 }
+      const mvpPosition =
+        typeof selectedNode.position === 'object' && selectedNode.position !== null
+          ? (selectedNode.position as any)
+          : { x: 500, y: 1200 }
 
       // Dashboardノードを作成（MVPの右側に配置）
       const { data: dashboardNode, error: nodeError } = await supabase
@@ -35,14 +36,16 @@ export function MeasurementManager() {
           title: dashboardTitle.trim(),
           position: {
             x: mvpPosition.x + 150,
-            y: mvpPosition.y
+            y: mvpPosition.y,
           },
           size: 80,
           metadata: {
             measurement_period_days: measurementPeriod,
             measurement_start_date: new Date().toISOString(),
-            measurement_end_date: new Date(Date.now() + measurementPeriod * 24 * 60 * 60 * 1000).toISOString()
-          }
+            measurement_end_date: new Date(
+              Date.now() + measurementPeriod * 24 * 60 * 60 * 1000
+            ).toISOString(),
+          },
         })
         .select()
         .single()
@@ -87,16 +90,20 @@ export function MeasurementManager() {
   const scheduleMeasurementTransition = async (dashboardNode: Node, periodDays: number) => {
     // 実際のアプリケーションでは、サーバーサイドでスケジューリングを行う
     // ここではデモとして、ローカルでタイマーを設定
-    setTimeout(async () => {
-      // Improvementノードを自動生成
-      await generateImprovement(dashboardNode)
-    }, periodDays * 24 * 60 * 60 * 1000)
+    setTimeout(
+      async () => {
+        // Improvementノードを自動生成
+        await generateImprovement(dashboardNode)
+      },
+      periodDays * 24 * 60 * 60 * 1000
+    )
   }
 
   const generateImprovement = async (dashboardNode: Node) => {
-    const dashboardPosition = typeof dashboardNode.position === 'object' && dashboardNode.position !== null
-      ? (dashboardNode.position as any)
-      : { x: 650, y: 1200 }
+    const dashboardPosition =
+      typeof dashboardNode.position === 'object' && dashboardNode.position !== null
+        ? (dashboardNode.position as any)
+        : { x: 650, y: 1200 }
 
     // Improvementノードを作成
     const { data: improvementNode, error } = await supabase
@@ -107,13 +114,13 @@ export function MeasurementManager() {
         title: `改善提案 - ${dashboardNode.title}`,
         position: {
           x: dashboardPosition.x,
-          y: 1600  // Learnエリアの位置
+          y: 1600, // Learnエリアの位置
         },
         size: 80,
         metadata: {
           dashboard_id: dashboardNode.id,
-          created_from_measurement: true
-        }
+          created_from_measurement: true,
+        },
       })
       .select()
       .single()

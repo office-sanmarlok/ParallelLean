@@ -14,7 +14,7 @@ interface TaskStatusMenuProps {
 export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const supabase = createClient()
-  const updateNode = useGraphStore(state => state.updateNode)
+  const updateNode = useGraphStore((state) => state.updateNode)
 
   if (node.type !== 'task') return null
 
@@ -41,7 +41,7 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
   const checkForMVPGeneration = async () => {
     // 同じプロジェクトラインの全タスクをチェック
     const { nodes } = useGraphStore.getState()
-    
+
     // このタスクのプロジェクトラインを見つける
     const { data: edges } = await supabase
       .from('edges')
@@ -60,13 +60,13 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
       if (visitedNodes.has(currentId)) continue
       visitedNodes.add(currentId)
 
-      const currentNode = nodes.find(n => n.id === currentId)
+      const currentNode = nodes.find((n) => n.id === currentId)
       if (currentNode?.type === 'task') {
         projectTasks.push(currentNode)
       }
 
       // 接続されたノードを探す
-      edges.forEach(edge => {
+      edges.forEach((edge) => {
         if (edge.source_id === currentId && !visitedNodes.has(edge.target_id)) {
           queue.push(edge.target_id)
         }
@@ -77,7 +77,7 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
     }
 
     // 全タスクが完了しているかチェック
-    const allCompleted = projectTasks.every(task => task.task_status === 'completed')
+    const allCompleted = projectTasks.every((task) => task.task_status === 'completed')
 
     if (allCompleted && projectTasks.length > 0) {
       // MVP自動生成
@@ -87,12 +87,12 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
 
   const generateMVP = async (tasks: Node[]) => {
     // タスクの平均X座標を計算
-    const avgX = tasks.reduce((sum, task) => {
-      const pos = typeof task.position === 'object' && task.position !== null
-        ? (task.position as any).x
-        : 0
-      return sum + pos
-    }, 0) / tasks.length
+    const avgX =
+      tasks.reduce((sum, task) => {
+        const pos =
+          typeof task.position === 'object' && task.position !== null ? (task.position as any).x : 0
+        return sum + pos
+      }, 0) / tasks.length
 
     // MVPノードを作成
     const { data: mvpNode, error } = await supabase
@@ -103,7 +103,7 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
         title: 'MVP - ' + new Date().toLocaleDateString('ja-JP'),
         position: {
           x: avgX,
-          y: 1200  // Measureエリアの位置
+          y: 1200, // Measureエリアの位置
         },
         size: 100,
       })
@@ -113,15 +113,13 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
     if (!error && mvpNode) {
       // 全タスクからMVPへのエッジを作成
       for (const task of tasks) {
-        await supabase
-          .from('edges')
-          .insert({
-            source_id: task.id,
-            target_id: mvpNode.id,
-            type: 'link',
-            is_branch: false,
-            is_merge: true,  // 合流を示す
-          })
+        await supabase.from('edges').insert({
+          source_id: task.id,
+          target_id: mvpNode.id,
+          type: 'link',
+          is_branch: false,
+          is_merge: true, // 合流を示す
+        })
       }
 
       // ストアに追加

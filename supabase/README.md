@@ -63,20 +63,20 @@ supabase gen types typescript --local > src/types/database.generated.ts
 1. **Row Level Security (RLS)**: ユーザーは自分のデータのみアクセス可能
 2. **自動更新**: updated_atフィールドの自動更新
 3. **制約**: ノードタイプとエリアの整合性チェック
-4. **トリガー**: 
+4. **トリガー**:
    - Memoノードのサイズ自動計算
    - プロジェクトステータスの自動更新
 5. **ビュー**: プロジェクトサマリーとノード関係の簡易アクセス
 
 ### エリアとノードタイプの関係
 
-| エリア | 許可されるノードタイプ |
-|--------|------------------------|
-| knowledge_base | memo, kb_tag |
-| idea_stock | proposal, research, is_tag |
-| build | task |
-| measure | mvp, dashboard |
-| learn | mvp, dashboard, improvement |
+| エリア         | 許可されるノードタイプ      |
+| -------------- | --------------------------- |
+| knowledge_base | memo, kb_tag                |
+| idea_stock     | proposal, research, is_tag  |
+| build          | task                        |
+| measure        | mvp, dashboard              |
+| learn          | mvp, dashboard, improvement |
 
 ### プロジェクトの流れ
 

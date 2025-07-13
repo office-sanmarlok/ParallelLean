@@ -13,7 +13,7 @@ export function useGraphData() {
     // 初期データ取得
     const fetchGraphData = async () => {
       setIsLoading(true)
-      
+
       try {
         // ノード取得
         const { data: nodes, error: nodesError } = await supabase
@@ -24,12 +24,9 @@ export function useGraphData() {
         if (nodesError) throw nodesError
 
         // エッジ取得
-        const { data: edges, error: edgesError } = await supabase
-          .from('edges')
-          .select('*')
+        const { data: edges, error: edgesError } = await supabase.from('edges').select('*')
 
         if (edgesError) throw edgesError
-
 
         // ストアに設定
         setNodes(nodes || [])

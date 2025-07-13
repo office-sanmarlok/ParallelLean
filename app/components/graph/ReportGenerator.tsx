@@ -18,7 +18,7 @@ export function ReportGenerator() {
     try {
       // プロポーザルごとにレポートを生成
       const reports: string[] = []
-      const proposals = nodes.filter(n => n.type === 'proposal')
+      const proposals = nodes.filter((n) => n.type === 'proposal')
 
       for (const proposal of proposals) {
         const report = await generateProjectReport(proposal)
@@ -60,16 +60,16 @@ ${generateKnowledgeBaseReport()}
     // BFSで関連ノードを収集
     while (queue.length > 0) {
       const currentId = queue.shift()!
-      
-      const connectedEdges = edges.filter(e => 
-        e.source_id === currentId || e.target_id === currentId
+
+      const connectedEdges = edges.filter(
+        (e) => e.source_id === currentId || e.target_id === currentId
       )
 
       for (const edge of connectedEdges) {
         const otherId = edge.source_id === currentId ? edge.target_id : edge.source_id
         if (!visitedNodes.has(otherId)) {
           visitedNodes.add(otherId)
-          const node = nodes.find(n => n.id === otherId)
+          const node = nodes.find((n) => n.id === otherId)
           if (node) {
             projectNodes.push(node)
             queue.push(otherId)
@@ -79,16 +79,20 @@ ${generateKnowledgeBaseReport()}
     }
 
     // ノードをタイプ別に分類
-    const nodesByType = projectNodes.reduce((acc, node) => {
-      if (!acc[node.type]) acc[node.type] = []
-      acc[node.type].push(node)
-      return acc
-    }, {} as Record<string, Node[]>)
+    const nodesByType = projectNodes.reduce(
+      (acc, node) => {
+        if (!acc[node.type]) acc[node.type] = []
+        acc[node.type].push(node)
+        return acc
+      },
+      {} as Record<string, Node[]>
+    )
 
     // タスクの完了率を計算
     const tasks = nodesByType.task || []
-    const completedTasks = tasks.filter(t => t.task_status === 'completed').length
-    const taskCompletionRate = tasks.length > 0 ? (completedTasks / tasks.length * 100).toFixed(1) : 0
+    const completedTasks = tasks.filter((t) => t.task_status === 'completed').length
+    const taskCompletionRate =
+      tasks.length > 0 ? ((completedTasks / tasks.length) * 100).toFixed(1) : 0
 
     // MVPとダッシュボードの情報
     const mvp = nodesByType.mvp?.[0]
@@ -118,28 +122,43 @@ ${generateKnowledgeBaseReport()}
 - **完了タスク**: ${completedTasks}
 - **完了率**: ${taskCompletionRate}%
 
-${mvp ? `#### MVP
+${
+  mvp
+    ? `#### MVP
 - **名称**: ${mvp.title}
-- **作成日**: ${mvp.created_at ? new Date(mvp.created_at).toLocaleDateString('ja-JP') : '不明'}` : ''}
+- **作成日**: ${mvp.created_at ? new Date(mvp.created_at).toLocaleDateString('ja-JP') : '不明'}`
+    : ''
+}
 
-${dashboard ? `#### 計測結果
+${
+  dashboard
+    ? `#### 計測結果
 - **ダッシュボード**: ${dashboard.title}
-- **計測期間**: ${(dashboard.metadata as any)?.measurement_period_days || '不明'}日間` : ''}
+- **計測期間**: ${(dashboard.metadata as any)?.measurement_period_days || '不明'}日間`
+    : ''
+}
 
-${improvement ? `#### 改善提案
+${
+  improvement
+    ? `#### 改善提案
 - **内容**: ${improvement.title}
-${decisionInfo}` : ''}`
+${decisionInfo}`
+    : ''
+}`
   }
 
   const generateSummary = (): string => {
-    const proposals = nodes.filter(n => n.type === 'proposal')
+    const proposals = nodes.filter((n) => n.type === 'proposal')
     const totalProjects = proposals.length
     const activeProjects = proposals.length
     const totalNodes = nodes.length
-    const nodesByArea = nodes.reduce((acc, node) => {
-      acc[node.area] = (acc[node.area] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+    const nodesByArea = nodes.reduce(
+      (acc, node) => {
+        acc[node.area] = (acc[node.area] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
 
     return `- **総プロジェクト数**: ${totalProjects}
 - **アクティブプロジェクト**: ${activeProjects}
@@ -153,16 +172,16 @@ ${decisionInfo}` : ''}`
   }
 
   const generateKnowledgeBaseReport = (): string => {
-    const kbNodes = nodes.filter(n => n.area === 'knowledge_base')
-    const memos = kbNodes.filter(n => n.type === 'memo')
-    const tags = kbNodes.filter(n => n.type === 'kb_tag')
+    const kbNodes = nodes.filter((n) => n.area === 'knowledge_base')
+    const memos = kbNodes.filter((n) => n.type === 'memo')
+    const tags = kbNodes.filter((n) => n.type === 'kb_tag')
 
-    const tagConnections = tags.map(tag => {
+    const tagConnections = tags.map((tag) => {
       const connectedMemos = edges
-        .filter(e => e.target_id === tag.id && e.type === 'tag')
-        .map(e => nodes.find(n => n.id === e.source_id))
-        .filter(n => n && n.type === 'memo')
-        .map(n => n!.title)
+        .filter((e) => e.target_id === tag.id && e.type === 'tag')
+        .map((e) => nodes.find((n) => n.id === e.source_id))
+        .filter((n) => n && n.type === 'memo')
+        .map((n) => n!.title)
 
       return `- **${tag.title}**: ${connectedMemos.join(', ') || '接続なし'}`
     })
@@ -199,8 +218,11 @@ ${tagConnections.join('\n')}`
       {showReport && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-50" onClick={() => setShowReport(false)} />
-            
+            <div
+              className="fixed inset-0 bg-black opacity-50"
+              onClick={() => setShowReport(false)}
+            />
+
             <div className="relative bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden">
               <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center justify-between">
@@ -218,14 +240,24 @@ ${tagConnections.join('\n')}`
                       onClick={() => setShowReport(false)}
                       className="text-gray-400 hover:text-gray-500"
                     >
-                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="h-6 w-6"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)]">
                 <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
                   {reportContent}

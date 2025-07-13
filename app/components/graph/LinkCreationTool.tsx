@@ -4,7 +4,8 @@ import { useGraphStore } from '@/app/stores/graphStore'
 import { createClient } from '@/app/lib/supabase/client'
 
 export function LinkCreationTool() {
-  const { selectedNode, linkingMode, linkingSource, setLinkingMode, setLinkingSource, addEdge } = useGraphStore()
+  const { selectedNode, linkingMode, linkingSource, setLinkingMode, setLinkingSource, addEdge } =
+    useGraphStore()
   const supabase = createClient()
 
   // リンク作成開始
@@ -27,20 +28,24 @@ export function LinkCreationTool() {
 
     try {
       // エッジタイプを決定
-      let edgeType = 'link'
-      
+      let edgeType: 'link' | 'tag' = 'link'
+
       // KBTagとMemoの接続は特別なタイプ
-      if ((linkingSource.type === 'kb_tag' && targetNode.type === 'memo') ||
-          (linkingSource.type === 'memo' && targetNode.type === 'kb_tag')) {
+      if (
+        (linkingSource.type === 'kb_tag' && targetNode.type === 'memo') ||
+        (linkingSource.type === 'memo' && targetNode.type === 'kb_tag')
+      ) {
         edgeType = 'tag'
       }
-      
+
       // ISTagとProposalの接続も特別なタイプ
-      if ((linkingSource.type === 'is_tag' && targetNode.type === 'proposal') ||
-          (linkingSource.type === 'proposal' && targetNode.type === 'is_tag')) {
+      if (
+        (linkingSource.type === 'is_tag' && targetNode.type === 'proposal') ||
+        (linkingSource.type === 'proposal' && targetNode.type === 'is_tag')
+      ) {
         edgeType = 'tag'
       }
-      
+
       const { data: newEdge, error } = await supabase
         .from('edges')
         .insert({
@@ -79,22 +84,26 @@ export function LinkCreationTool() {
   // リンク作成ボタンを表示
   if (selectedNode && canCreateLink(selectedNode) && !linkingMode) {
     return (
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        left: '16px',
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        padding: '16px',
-        zIndex: 10
-      }}>
-        <h3 style={{
-          fontSize: '14px',
-          fontWeight: '500',
-          color: '#111827',
-          marginBottom: '8px'
-        }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          zIndex: 10,
+        }}
+      >
+        <h3
+          style={{
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#111827',
+            marginBottom: '8px',
+          }}
+        >
           選択中: {selectedNode.title}
         </h3>
         <button
@@ -109,7 +118,7 @@ export function LinkCreationTool() {
             borderRadius: '6px',
             border: 'none',
             fontSize: '14px',
-            cursor: 'pointer'
+            cursor: 'pointer',
           }}
         >
           他のノードへリンク作成
@@ -120,35 +129,40 @@ export function LinkCreationTool() {
 
   // リンクモード中の表示
   if (linkingMode && linkingSource) {
-    const canLinkTo = selectedNode && 
-                      selectedNode.id !== linkingSource.id && 
-                      canCreateLink(selectedNode)
-    
+    const canLinkTo =
+      selectedNode && selectedNode.id !== linkingSource.id && canCreateLink(selectedNode)
+
     return (
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        left: '16px',
-        backgroundColor: '#ffffff',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-        padding: '16px',
-        zIndex: 10,
-        minWidth: '300px'
-      }}>
-        <h3 style={{
-          fontSize: '14px',
-          fontWeight: '500',
-          color: '#111827',
-          marginBottom: '8px'
-        }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          backgroundColor: '#ffffff',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          padding: '16px',
+          zIndex: 10,
+          minWidth: '300px',
+        }}
+      >
+        <h3
+          style={{
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#111827',
+            marginBottom: '8px',
+          }}
+        >
           リンク元: {linkingSource.title}
         </h3>
-        <p style={{
-          fontSize: '14px',
-          color: '#6B7280',
-          marginBottom: '12px'
-        }}>
+        <p
+          style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            marginBottom: '12px',
+          }}
+        >
           リンク先のノードを選択してください
         </p>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -162,7 +176,7 @@ export function LinkCreationTool() {
                 borderRadius: '6px',
                 border: 'none',
                 fontSize: '14px',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
               「{selectedNode.title}」へリンク
@@ -177,7 +191,7 @@ export function LinkCreationTool() {
               borderRadius: '6px',
               border: 'none',
               fontSize: '14px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             キャンセル

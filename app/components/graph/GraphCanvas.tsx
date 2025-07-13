@@ -4,7 +4,6 @@ import { useRef, useEffect, useState } from 'react'
 import type Konva from 'konva'
 import { Stage, Layer, Group, Rect } from 'react-konva'
 import { useGraphStore } from '@/app/stores/graphStore'
-import { createForceSimulation } from '@/app/lib/d3/forceSimulation'
 import { createClient } from '@/app/lib/supabase/client'
 import { getAreaBounds } from '@/app/lib/graph/layout'
 import { GraphNode } from './GraphNode'
@@ -26,15 +25,25 @@ import type { Node, Edge, AreaType } from '@/src/types/database'
 import { AREA_ORDER, AREA_HEIGHT_RATIO } from '@/app/lib/graph/layout'
 import { createButtonNodes } from '@/app/lib/graph/buttonNodes'
 import { createVirtualNode } from '@/app/lib/graph/createVirtualNodes'
-import { useIdeaStockSimulation } from '@/app/hooks/useIdeaStockSimulation'
-import { usePertLayout } from '@/app/hooks/usePertLayout'
-import { useBuildGravity } from '@/app/hooks/useBuildGravity'
 import { useUnifiedForceSimulation } from '@/app/hooks/useUnifiedForceSimulation'
 
 export function GraphCanvas() {
   const stageRef = useRef<Konva.Stage>(null)
   const layerRef = useRef<Konva.Layer>(null)
-  const { nodes, edges, selectedNode, setSelectedNode, virtualNodes, setVirtualNodes, updateVirtualNode, deleteNode, addNode, addEdge, updateNode } = useGraphStore()
+  const animationFrameRef = useRef<number | undefined>(undefined)
+  const {
+    nodes,
+    edges,
+    selectedNode,
+    setSelectedNode,
+    virtualNodes,
+    setVirtualNodes,
+    updateVirtualNode,
+    deleteNode,
+    addNode,
+    addEdge,
+    updateNode,
+  } = useGraphStore()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -42,7 +51,6 @@ export function GraphCanvas() {
   const [createPosition, setCreatePosition] = useState<{ x: number; y: number } | undefined>()
   const [createArea, setCreateArea] = useState<AreaType>('knowledge_base')
   const [editorNode, setEditorNode] = useState<Node | null>(null)
-  const animationFrameRef = useRef<number>()
   const [showTagButton, setShowTagButton] = useState<string | null>(null)
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const [newTagName, setNewTagName] = useState('')
@@ -52,55 +60,47 @@ export function GraphCanvas() {
     isOpen: boolean
     mvpNodeId: string | null
   }>({ isOpen: false, mvpNodeId: null })
-  
+
   const supabase = createClient()
-  
+
   // 統合Force Simulationを有効化（全エリア・全ノードタイプ対応）
   useUnifiedForceSimulation()
-  
-  // 個別シミュレーションは無効化
-  // useIdeaStockSimulation()
-  // usePertLayout()
-  // useBuildGravity()
-  
+
   // Memoノードを削除
   const handleDeleteMemo = async () => {
     if (!selectedNode || selectedNode.type !== 'memo') return
-    
+
     // 楽観的更新：即座にUIから削除
     const deletedNodeId = selectedNode.id
     deleteNode(deletedNodeId)
-    
+
     // UIをリセット
     setSelectedNode(null)
     setVirtualNodes([])
     setShowTagButton(null)
-    
+
     // バックグラウンドでDB削除
     ;(async () => {
       try {
-        await supabase
-          .from('nodes')
-          .delete()
-          .eq('id', deletedNodeId)
+        await supabase.from('nodes').delete().eq('id', deletedNodeId)
       } catch (error) {
         console.error('Failed to delete from database:', error)
         // 必要に応じて復元処理を追加
       }
     })()
   }
-  
+
   // プロジェクトを作成
   const handleCreateProject = async () => {
     if (!selectedNode || selectedNode.type !== 'memo') return
-    
+
     try {
       // IdeaStockエリアにProposalノードを作成
       const proposalPosition = {
         x: Math.random() * 1000 + 200,
-        y: 3000 * AREA_HEIGHT_RATIO + 200 // IdeaStockエリアの位置
+        y: 3000 * AREA_HEIGHT_RATIO + 200, // IdeaStockエリアの位置
       }
-      
+
       const { data: proposalNode, error } = await supabase
         .from('nodes')
         .insert({
@@ -108,34 +108,33 @@ export function GraphCanvas() {
           area: 'idea_stock',
           title: `${selectedNode.title} - Proposal`,
           content: `# ${selectedNode.title}\n\n## 概要\n${selectedNode.content || ''}\n\n## 提案内容\n\n## 期待される効果\n`,
-          position: proposalPosition
+          position: proposalPosition,
         })
         .select()
         .single()
-      
+
       if (error) throw error
-      
+
       // エッジを作成（MemoとProposalを接続）
       const { data: edge } = await supabase
         .from('edges')
         .insert({
           source_id: selectedNode.id,
           target_id: proposalNode.id,
-          type: 'reference'
+          type: 'reference',
           // is_branch, is_mergeはDBのデフォルト値（false）を使用
         })
         .select()
         .single()
-      
+
       // ストアに追加
       addNode(proposalNode)
       if (edge) addEdge(edge)
-      
-      
+
       // UIをリセット
       setVirtualNodes([])
       setShowTagButton(null)
-      
+
       // 作成したProposalノードを選択
       setSelectedNode(proposalNode)
       setEditorNode(proposalNode)
@@ -143,11 +142,11 @@ export function GraphCanvas() {
       console.error('Failed to create project:', error)
     }
   }
-  
+
   // 新規Memoノードを作成
   const handleCreateNewMemo = async () => {
     if (!newMemoPosition) return
-    
+
     try {
       // 新しいMemoノードを作成
       const { data: newNode, error } = await supabase
@@ -157,20 +156,20 @@ export function GraphCanvas() {
           area: 'knowledge_base',
           title: '新しいメモ',
           content: '',
-          position: newMemoPosition
+          position: newMemoPosition,
         })
         .select()
         .single()
-      
+
       if (error) throw error
-      
+
       // ストアに追加
       addNode(newNode)
-      
+
       // 作成したノードを選択してエディタを開く
       setSelectedNode(newNode)
       setEditorNode(newNode)
-      
+
       // ボタンノードをクリア
       setVirtualNodes([])
       setNewMemoPosition(null)
@@ -178,22 +177,19 @@ export function GraphCanvas() {
       console.error('Failed to create memo:', error)
     }
   }
-  
+
   // KBTagノードを削除
   const handleDeleteTag = async (tagId: string) => {
-    const tagNode = nodes.find(n => n.id === tagId && n.type === 'kb_tag')
+    const tagNode = nodes.find((n) => n.id === tagId && n.type === 'kb_tag')
     if (!tagNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', tagId)
-      
+      await supabase.from('nodes').delete().eq('id', tagId)
+
       // ストアから削除
       deleteNode(tagId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -202,22 +198,19 @@ export function GraphCanvas() {
       console.error('Failed to delete tag:', error)
     }
   }
-  
+
   // Proposalノードを削除
   const handleDeleteProposal = async (proposalId: string) => {
-    const proposalNode = nodes.find(n => n.id === proposalId && n.type === 'proposal')
+    const proposalNode = nodes.find((n) => n.id === proposalId && n.type === 'proposal')
     if (!proposalNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', proposalId)
-      
+      await supabase.from('nodes').delete().eq('id', proposalId)
+
       // ストアから削除
       deleteNode(proposalId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -226,17 +219,18 @@ export function GraphCanvas() {
       console.error('Failed to delete proposal:', error)
     }
   }
-  
+
   // Researchノードを作成
   const handleCreateResearch = async (proposalId: string) => {
-    const proposalNode = nodes.find(n => n.id === proposalId && n.type === 'proposal')
+    const proposalNode = nodes.find((n) => n.id === proposalId && n.type === 'proposal')
     if (!proposalNode) return
-    
+
     try {
-      const proposalPos = typeof proposalNode.position === 'object' && proposalNode.position !== null
-        ? (proposalNode.position as any)
-        : { x: 0, y: 0 }
-      
+      const proposalPos =
+        typeof proposalNode.position === 'object' && proposalNode.position !== null
+          ? (proposalNode.position as any)
+          : { x: 0, y: 0 }
+
       // 新しいResearchノードを作成
       const { data: researchNode, error } = await supabase
         .from('nodes')
@@ -247,73 +241,70 @@ export function GraphCanvas() {
           content: `# ${proposalNode.title} リサーチ\n\n## 調査内容\n\n## 参考資料\n`,
           position: {
             x: proposalPos.x + 200,
-            y: proposalPos.y
+            y: proposalPos.y,
           },
         })
         .select()
         .single()
-      
+
       if (error) throw error
-      
+
       // エッジを作成
       const { data: edge } = await supabase
         .from('edges')
         .insert({
           source_id: proposalId,
           target_id: researchNode.id,
-          type: 'reference'
+          type: 'reference',
           // is_branch, is_mergeはDBのデフォルト値（false）を使用
         })
         .select()
         .single()
-      
+
       // ストアに追加
       addNode(researchNode)
       if (edge) addEdge(edge)
-      
+
       // 作成したノードを選択
       setSelectedNode(researchNode)
       setEditorNode(researchNode)
-      
+
       // ボタンノードをクリア
       setVirtualNodes([])
     } catch (error) {
       console.error('Failed to create research:', error)
     }
   }
-  
+
   // Memoノードとリンク
   const handleLinkMemo = async (proposalId: string) => {
-    const proposalNode = nodes.find(n => n.id === proposalId && n.type === 'proposal')
+    const proposalNode = nodes.find((n) => n.id === proposalId && n.type === 'proposal')
     if (!proposalNode) return
-    
+
     // リンク作成モードを開始
     useGraphStore.getState().setLinkingMode(true)
     useGraphStore.getState().setLinkingSource(proposalNode)
-    
+
     // ボタンノードをクリア
     setVirtualNodes([])
     setShowTagButton(null)
-    
+
     // ユーザーに指示を表示
     console.log('リンク作成モード: Memoノードをクリックして接続してください')
   }
-  
+
   // Taskノードを削除
   const handleDeleteTask = async (taskId: string) => {
-    const taskNode = nodes.find(n => n.id === taskId && n.type === 'task')
+    const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', taskId)
-      
+      await supabase.from('nodes').delete().eq('id', taskId)
+
       // ストアから削除
       deleteNode(taskId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -322,25 +313,27 @@ export function GraphCanvas() {
       console.error('Failed to delete task:', error)
     }
   }
-  
+
   // 新しいTaskノードを追加
   const handleAddTask = async (parentTaskId: string) => {
-    const parentTask = nodes.find(n => n.id === parentTaskId && n.type === 'task')
+    const parentTask = nodes.find((n) => n.id === parentTaskId && n.type === 'task')
     if (!parentTask) return
-    
+
     try {
-      const parentPos = typeof parentTask.position === 'object' && parentTask.position !== null
-        ? (parentTask.position as any)
-        : { x: 0, y: 0 }
-      
+      const parentPos =
+        typeof parentTask.position === 'object' && parentTask.position !== null
+          ? (parentTask.position as any)
+          : { x: 0, y: 0 }
+
       // 親タスクから出ているエッジの数を数える（複数の子タスクに対応）
-      const childEdges = edges.filter(e => e.source_id === parentTaskId)
+      const childEdges = edges.filter((e) => e.source_id === parentTaskId)
       const childCount = childEdges.length
-      
+
       // 新しいタスクの位置を計算（左右に広がる）
       const spacing = 150
-      const offsetX = (childCount % 2 === 0) ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
-      
+      const offsetX =
+        childCount % 2 === 0 ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
+
       // 新しいタスクを作成
       const { data: newTask, error } = await supabase
         .from('nodes')
@@ -351,37 +344,37 @@ export function GraphCanvas() {
           content: '',
           position: {
             x: parentPos.x + offsetX,
-            y: parentPos.y + 150
+            y: parentPos.y + 150,
           },
           task_status: 'pending',
           metadata: {
-            proposalId: (parentTask.metadata as any)?.proposalId
-          }
+            proposalId: (parentTask.metadata as any)?.proposalId,
+          },
         })
         .select()
         .single()
-      
+
       if (error) throw error
-      
+
       // エッジを作成（親タスクから新タスクへ）
       const { data: edge } = await supabase
         .from('edges')
         .insert({
           source_id: parentTaskId,
           target_id: newTask.id,
-          type: 'flow'
+          type: 'flow',
         })
         .select()
         .single()
-      
+
       // ストアに追加
       addNode(newTask)
       if (edge) addEdge(edge)
-      
+
       // 新しいタスクを選択
       setSelectedNode(newTask)
       setEditorNode(newTask)
-      
+
       // ボタンノードを更新
       const buttons = createButtonNodes(newTask, nodes)
       setVirtualNodes(buttons)
@@ -389,42 +382,45 @@ export function GraphCanvas() {
       console.error('Failed to add task:', error)
     }
   }
-  
+
   // Taskノードの状態を変更
   const handleChangeTaskStatus = async (taskId: string) => {
     console.log('handleChangeTaskStatus called with taskId:', taskId)
-    const taskNode = nodes.find(n => n.id === taskId && n.type === 'task')
+    const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) {
       console.error('Task node not found:', taskId)
       return
     }
-    
+
     try {
       // 現在の状態から次の状態へ遷移（保留→未完了→完了）
       const currentStatus = taskNode.task_status || 'pending'
       const statusCycle = ['pending', 'incomplete', 'completed'] // 保留→未完了→完了
       const currentIndex = statusCycle.indexOf(currentStatus)
-      const nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length] as 'pending' | 'incomplete' | 'completed'
-      
+      const nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length] as
+        | 'pending'
+        | 'incomplete'
+        | 'completed'
+
       console.log('Changing status from', currentStatus, 'to', nextStatus)
-      
+
       // データベースを更新
       const { error } = await supabase
         .from('nodes')
         .update({ task_status: nextStatus })
         .eq('id', taskId)
-      
+
       if (error) throw error
-      
+
       // ストアを更新
-      updateNode(taskId, { 
-        task_status: nextStatus 
+      updateNode(taskId, {
+        task_status: nextStatus,
       })
-      
+
       console.log('Task status updated successfully')
-      
+
       // ボタンノードは維持（状態変更後も継続して操作可能）
-      
+
       // 全Taskが完了しているかチェック
       if (nextStatus === 'completed') {
         setTimeout(() => {
@@ -436,37 +432,38 @@ export function GraphCanvas() {
       console.error('Failed to change task status:', error)
     }
   }
-  
+
   // Taskノードを他のTaskノードとリンク
   const handleLinkTask = async (sourceTaskId: string) => {
-    const sourceTask = nodes.find(n => n.id === sourceTaskId && n.type === 'task')
+    const sourceTask = nodes.find((n) => n.id === sourceTaskId && n.type === 'task')
     if (!sourceTask) return
-    
+
     // リンク作成モードを開始
     useGraphStore.getState().setLinkingMode(true)
     useGraphStore.getState().setLinkingSource(sourceTask)
-    
+
     // ボタンノードをクリア
     setVirtualNodes([])
     setShowTagButton(null)
-    
+
     // ユーザーに指示を表示
     console.log('タスクリンクモード: 他のTaskノードをクリックして依存関係を作成してください')
   }
-  
+
   // MVPノードを作成
   const handleCreateMVP = async (taskId: string) => {
-    const taskNode = nodes.find(n => n.id === taskId && n.type === 'task')
+    const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
-    
+
     try {
-      const taskPos = typeof taskNode.position === 'object' && taskNode.position !== null
-        ? (taskNode.position as any)
-        : { x: 0, y: 0 }
-      
+      const taskPos =
+        typeof taskNode.position === 'object' && taskNode.position !== null
+          ? (taskNode.position as any)
+          : { x: 0, y: 0 }
+
       // Measureエリアの境界を取得
       const measureBounds = getAreaBounds('measure')
-      
+
       // MVPノードを作成
       const { data: mvpNode, error } = await supabase
         .from('nodes')
@@ -477,40 +474,40 @@ export function GraphCanvas() {
           content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
           position: {
             x: taskPos.x,
-            y: measureBounds.minY + 200
+            y: measureBounds.minY + 200,
           },
           metadata: {
-            sourceTaskId: taskId
-          }
+            sourceTaskId: taskId,
+          },
         })
         .select()
         .single()
-      
+
       if (error) throw error
-      
+
       // エッジを作成（TaskからMVPへ）
       const { data: edge } = await supabase
         .from('edges')
         .insert({
           source_id: taskId,
           target_id: mvpNode.id,
-          type: 'flow'
+          type: 'flow',
         })
         .select()
         .single()
-      
+
       // ストアに追加
       addNode(mvpNode)
       if (edge) addEdge(edge)
-      
+
       // MVPノードを選択してエディタを開く
       setSelectedNode(mvpNode)
       setEditorNode(mvpNode)
-      
+
       // ボタンノードをクリア
       setVirtualNodes([])
       setShowTagButton(null)
-      
+
       // 全Taskが完了しているかチェック
       setTimeout(() => {
         console.log('Checking all tasks completed after MVP creation')
@@ -520,77 +517,80 @@ export function GraphCanvas() {
       console.error('Failed to create MVP:', error)
     }
   }
-  
+
   // 計測期間を強制終了してLearnエリアに移行
   const handleForceCompleteMeasurement = async (dashboardId: string) => {
     console.log('Force completing measurement for dashboard:', dashboardId)
-    
-    const dashboardNode = nodes.find(n => n.id === dashboardId && n.type === 'dashboard')
+
+    const dashboardNode = nodes.find((n) => n.id === dashboardId && n.type === 'dashboard')
     if (!dashboardNode) return
-    
+
     // DashboardノードのmetadataからMVPノードとの関連を見つける
-    const mvpEdge = edges.find(e => e.target_id === dashboardId && e.type === 'reference')
+    const mvpEdge = edges.find((e) => e.target_id === dashboardId && e.type === 'reference')
     if (!mvpEdge) {
       console.error('No edge found connecting to dashboard')
       return
     }
-    
-    const mvpNode = nodes.find(n => n.id === mvpEdge.source_id && n.type === 'mvp')
+
+    const mvpNode = nodes.find((n) => n.id === mvpEdge.source_id && n.type === 'mvp')
     if (!mvpNode) {
       console.error('MVP node not found')
       return
     }
-    
+
     try {
       // Learnエリアの境界を取得
       const learnBounds = getAreaBounds('learn')
-      
+
       // 位置を計算（垂直に並べる）
+      const mvpPosition = mvpNode.position as { x: number; y: number } | null
+      const dashboardPosition = dashboardNode.position as { x: number; y: number } | null
+
       const mvpNewPosition = {
-        x: mvpNode.position.x,
-        y: learnBounds.minY + 200
+        x: mvpPosition?.x || 0,
+        y: learnBounds.minY + 200,
       }
       const dashboardNewPosition = {
-        x: dashboardNode.position.x,
-        y: learnBounds.minY + 400
+        x: dashboardPosition?.x || 0,
+        y: learnBounds.minY + 400,
       }
-      
+
       // MVPノードをLearnエリアに更新
       const { error: mvpError } = await supabase
         .from('nodes')
         .update({
           area: 'learn',
-          position: mvpNewPosition
+          position: mvpNewPosition,
         })
         .eq('id', mvpNode.id)
-      
+
       if (mvpError) throw mvpError
-      
+
       // DashboardノードをLearnエリアに更新
       const { error: dashboardError } = await supabase
         .from('nodes')
         .update({
           area: 'learn',
-          position: dashboardNewPosition
+          position: dashboardNewPosition,
         })
         .eq('id', dashboardNode.id)
-      
+
       if (dashboardError) throw dashboardError
-      
+
       // ストアを更新
       updateNode(mvpNode.id, {
         area: 'learn',
-        position: mvpNewPosition
+        position: mvpNewPosition,
       })
       updateNode(dashboardNode.id, {
         area: 'learn',
-        position: dashboardNewPosition
+        position: dashboardNewPosition,
       })
-      
+
       // ボタンをクリア
       setVirtualNodes([])
       setShowTagButton(null)
-      
+
       // Improvementノードを作成
       const { data: improvementNode, error: improvementError } = await supabase
         .from('nodes')
@@ -601,50 +601,47 @@ export function GraphCanvas() {
           content: `# ${mvpNode.title} 改善点\n\n## 計測結果の分析\n\n## 改善提案\n\n## 次のステップ\n`,
           position: {
             x: mvpNewPosition.x - 200,
-            y: mvpNewPosition.y + 100
-          }
+            y: mvpNewPosition.y + 100,
+          },
         })
         .select()
         .single()
-      
+
       if (improvementError) throw improvementError
-      
+
       // MVPからImprovementへのエッジを作成
       const { data: improvementEdge } = await supabase
         .from('edges')
         .insert({
           source_id: mvpNode.id,
           target_id: improvementNode.id,
-          type: 'improvement'
+          type: 'improvement',
         })
         .select()
         .single()
-      
+
       // ストアに追加
       addNode(improvementNode)
       if (improvementEdge) addEdge(improvementEdge)
-      
+
       console.log('Successfully moved to Learn area and created improvement node')
     } catch (error) {
       console.error('Failed to complete measurement:', error)
     }
   }
-  
+
   // Researchノードを削除
   const handleDeleteResearch = async (researchId: string) => {
-    const researchNode = nodes.find(n => n.id === researchId && n.type === 'research')
+    const researchNode = nodes.find((n) => n.id === researchId && n.type === 'research')
     if (!researchNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', researchId)
-      
+      await supabase.from('nodes').delete().eq('id', researchId)
+
       // ストアから削除
       deleteNode(researchId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -653,22 +650,19 @@ export function GraphCanvas() {
       console.error('Failed to delete research:', error)
     }
   }
-  
+
   // ISTagノードを削除
   const handleDeleteISTag = async (isTagId: string) => {
-    const isTagNode = nodes.find(n => n.id === isTagId && n.type === 'is_tag')
+    const isTagNode = nodes.find((n) => n.id === isTagId && n.type === 'is_tag')
     if (!isTagNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', isTagId)
-      
+      await supabase.from('nodes').delete().eq('id', isTagId)
+
       // ストアから削除
       deleteNode(isTagId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -677,22 +671,19 @@ export function GraphCanvas() {
       console.error('Failed to delete IS tag:', error)
     }
   }
-  
+
   // Improvementノードを削除
   const handleDeleteImprovement = async (improvementId: string) => {
-    const improvementNode = nodes.find(n => n.id === improvementId && n.type === 'improvement')
+    const improvementNode = nodes.find((n) => n.id === improvementId && n.type === 'improvement')
     if (!improvementNode) return
-    
+
     try {
       // データベースから削除
-      await supabase
-        .from('nodes')
-        .delete()
-        .eq('id', improvementId)
-      
+      await supabase.from('nodes').delete().eq('id', improvementId)
+
       // ストアから削除
       deleteNode(improvementId)
-      
+
       // UIをリセット
       setSelectedNode(null)
       setVirtualNodes([])
@@ -701,33 +692,39 @@ export function GraphCanvas() {
       console.error('Failed to delete improvement:', error)
     }
   }
-  
+
   // 全Taskノードが完了しているかチェック
   const checkAllTasksCompleted = () => {
     // 最新の状態を取得
     const currentNodes = useGraphStore.getState().nodes
-    const allTasks = currentNodes.filter(n => n.type === 'task' && n.area === 'build')
-    console.log('All tasks:', allTasks.map(t => ({ id: t.id, status: t.task_status })))
-    const allCompleted = allTasks.length > 0 && allTasks.every(task => task.task_status === 'completed')
-    
+    const allTasks = currentNodes.filter((n) => n.type === 'task' && n.area === 'build')
+    console.log(
+      'All tasks:',
+      allTasks.map((t) => ({ id: t.id, status: t.task_status }))
+    )
+    const allCompleted =
+      allTasks.length > 0 && allTasks.every((task) => task.task_status === 'completed')
+
     console.log('All tasks completed?', allCompleted)
-    
+
     if (allCompleted) {
       // MVPノードが存在するかチェック
-      const mvpNode = currentNodes.find(n => n.type === 'mvp' && n.area === 'measure')
+      const mvpNode = currentNodes.find((n) => n.type === 'mvp' && n.area === 'measure')
       console.log('MVP node found?', mvpNode)
-      
+
       if (mvpNode) {
         // 既にDashboardノードが存在するかチェック
-        const dashboardExists = currentNodes.some(n => n.type === 'dashboard' && n.area === 'measure')
+        const dashboardExists = currentNodes.some(
+          (n) => n.type === 'dashboard' && n.area === 'measure'
+        )
         console.log('Dashboard already exists?', dashboardExists)
-        
+
         if (!dashboardExists) {
           console.log('Showing measurement period modal for MVP:', mvpNode.id)
           // 計測期間設定モーダルを表示
           setMeasurementPeriodModal({
             isOpen: true,
-            mvpNodeId: mvpNode.id
+            mvpNodeId: mvpNode.id,
           })
           console.log('Modal state set:', { isOpen: true, mvpNodeId: mvpNode.id })
         }
@@ -754,13 +751,12 @@ export function GraphCanvas() {
   // ステージ参照をWindowオブジェクトに保存
   useEffect(() => {
     if (stageRef.current) {
-      (window as any).__graphStage = stageRef.current
+      ;(window as any).__graphStage = stageRef.current
     }
     return () => {
       delete (window as any).__graphStage
     }
   }, [])
-
 
   // アニメーションループ（Force Simulationの変更を反映）
   useEffect(() => {
@@ -770,9 +766,9 @@ export function GraphCanvas() {
       }
       animationFrameRef.current = requestAnimationFrame(animate)
     }
-    
+
     animate()
-    
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
@@ -783,12 +779,12 @@ export function GraphCanvas() {
   // ズーム機能
   // ProposalからBuildへの進行処理
   const handleProgressToBuild = async (proposalId: string) => {
-    const proposal = nodes.find(n => n.id === proposalId)
+    const proposal = nodes.find((n) => n.id === proposalId)
     if (!proposal) return
-    
+
     // Buildエリアの境界を取得
     const buildBounds = getAreaBounds('build')
-    
+
     // 初期のTaskノードを1つ作成
     const task = {
       id: crypto.randomUUID(),
@@ -798,11 +794,11 @@ export function GraphCanvas() {
       content: '',
       position: {
         x: 1000, // 中央に配置
-        y: buildBounds.minY + 100
+        y: buildBounds.minY + 100,
       },
       task_status: 'pending' as const,
       metadata: {
-        proposalId: proposalId,  // Proposalとの関連を保存
+        proposalId: proposalId, // Proposalとの関連を保存
       },
       // DB必須フィールドを追加
       created_at: new Date().toISOString(),
@@ -812,9 +808,9 @@ export function GraphCanvas() {
       project_line_id: null,
       inherited_kb_tags: null,
       size: null,
-      vertical_order: null
+      vertical_order: null,
     }
-    
+
     // エッジを作成（ProposalからTaskへ）
     const taskEdge = {
       id: crypto.randomUUID(),
@@ -826,17 +822,17 @@ export function GraphCanvas() {
       is_merge: false,
       created_at: new Date().toISOString(),
       branch_from: null,
-      merge_to: null
+      merge_to: null,
     }
-    
+
     // 即座にストアに追加（UIに反映）
     addNode(task)
     addEdge(taskEdge)
-    
+
     console.log('Created task edge:', taskEdge)
     console.log('Proposal node:', proposal)
     console.log('Task node:', task)
-    
+
     // バックグラウンドでDB保存（RPC関数が利用できない場合の暫定実装）
     ;(async () => {
       try {
@@ -846,14 +842,14 @@ export function GraphCanvas() {
           console.error('Failed to save nodes:', nodesError)
           throw nodesError
         }
-        
+
         // エッジをDBに保存
         const { error: edgesError } = await supabase.from('edges').insert(taskEdge)
         if (edgesError) {
           console.error('Failed to save edges:', edgesError)
           throw edgesError
         }
-        
+
         console.log('Successfully progressed to build')
       } catch (error) {
         console.error('Failed to save to database:', error)
@@ -901,11 +897,16 @@ export function GraphCanvas() {
   // ノードクリック
   const handleNodeClick = async (node: Node) => {
     const { linkingMode, linkingSource } = useGraphStore.getState()
-    
+
     // リンク作成モード中の処理
     if (linkingMode && linkingSource) {
       // リンク先として有効なノードかチェック
-      if (node.type === 'memo' && node.area === 'knowledge_base' && node.id !== linkingSource.id && linkingSource.type === 'proposal') {
+      if (
+        node.type === 'memo' &&
+        node.area === 'knowledge_base' &&
+        node.id !== linkingSource.id &&
+        linkingSource.type === 'proposal'
+      ) {
         try {
           // エッジを作成
           const { data: edge, error } = await supabase
@@ -913,34 +914,39 @@ export function GraphCanvas() {
             .insert({
               source_id: linkingSource.id,
               target_id: node.id,
-              type: 'reference'
+              type: 'reference',
               // is_branch, is_mergeはDBのデフォルト値（false）を使用
             })
             .select()
             .single()
-          
+
           if (error) throw error
-          
+
           // ストアに追加
           addEdge(edge)
-          
+
           // リンク作成モードを終了
           useGraphStore.getState().setLinkingMode(false)
           useGraphStore.getState().setLinkingSource(null)
-          
+
           console.log(`リンクを作成しました: ${linkingSource.title} → ${node.title}`)
         } catch (error) {
           console.error('Failed to create link:', error)
         }
       }
       // Taskノード同士のリンク作成
-      else if (node.type === 'task' && node.area === 'build' && node.id !== linkingSource.id && linkingSource.type === 'task') {
+      else if (
+        node.type === 'task' &&
+        node.area === 'build' &&
+        node.id !== linkingSource.id &&
+        linkingSource.type === 'task'
+      ) {
         try {
           // 既存のエッジをチェック（重複を防ぐ）
-          const existingEdge = edges.find(e => 
-            e.source_id === linkingSource.id && e.target_id === node.id
+          const existingEdge = edges.find(
+            (e) => e.source_id === linkingSource.id && e.target_id === node.id
           )
-          
+
           if (existingEdge) {
             console.log('既にリンクが存在します')
             // リンク作成モードを終了
@@ -948,27 +954,27 @@ export function GraphCanvas() {
             useGraphStore.getState().setLinkingSource(null)
             return
           }
-          
+
           // エッジを作成（依存関係）
           const { data: edge, error } = await supabase
             .from('edges')
             .insert({
               source_id: linkingSource.id,
               target_id: node.id,
-              type: 'dependency'
+              type: 'dependency',
             })
             .select()
             .single()
-          
+
           if (error) throw error
-          
+
           // ストアに追加
           addEdge(edge)
-          
+
           // リンク作成モードを終了
           useGraphStore.getState().setLinkingMode(false)
           useGraphStore.getState().setLinkingSource(null)
-          
+
           console.log(`タスク依存関係を作成しました: ${linkingSource.title} → ${node.title}`)
         } catch (error) {
           console.error('Failed to create task link:', error)
@@ -976,7 +982,7 @@ export function GraphCanvas() {
       }
       return
     }
-    
+
     // ボタンノードがクリックされた場合の処理
     if (node.id === 'virtual-tag-button') {
       setIsCreatingTag(true)
@@ -1000,7 +1006,7 @@ export function GraphCanvas() {
       return
     } else if (node.id.startsWith('virtual-proposal-tag-')) {
       const metadata = node.metadata as any
-      setSelectedNode(nodes.find(n => n.id === metadata?.parentId) || null)
+      setSelectedNode(nodes.find((n) => n.id === metadata?.parentId) || null)
       setIsCreatingTag(true)
       return
     } else if (node.id.startsWith('virtual-proposal-research-')) {
@@ -1057,15 +1063,15 @@ export function GraphCanvas() {
       handleDeleteImprovement(metadata?.parentId)
       return
     }
-    
+
     // 既に選択されているノード以外がクリックされた場合、ボタンノードを削除
     if (selectedNode && selectedNode.id !== node.id) {
       setShowTagButton(null)
       setVirtualNodes([])
     }
-    
+
     setSelectedNode(node)
-    
+
     // 各ノードタイプに応じてボタンを表示
     if ((node.type === 'memo' || node.type === 'kb_tag') && node.area === 'knowledge_base') {
       setShowTagButton(node.id)
@@ -1099,7 +1105,7 @@ export function GraphCanvas() {
       setShowTagButton(null)
       setVirtualNodes([])
     }
-    
+
     // シングルクリック時はエディタを開かない（ボタンノードの表示のみ）
   }
 
@@ -1130,7 +1136,7 @@ export function GraphCanvas() {
       setShowTagButton(null)
       setVirtualNodes([])
       setIsCreatingTag(false)
-      
+
       // リンク作成モードも解除
       if (useGraphStore.getState().linkingMode) {
         useGraphStore.getState().setLinkingMode(false)
@@ -1153,16 +1159,16 @@ export function GraphCanvas() {
     const areaHeight = 3000 * AREA_HEIGHT_RATIO
     const areaIndex = Math.floor(relativeY / areaHeight)
     const area = AREA_ORDER[Math.max(0, Math.min(areaIndex, AREA_ORDER.length - 1))]
-    
+
     // KnowledgeBaseエリアの場合のみ新規作成ボタンを表示
     if (area === 'knowledge_base') {
       const clickPosition = {
         x: (pointer.x - position.x) / scale,
         y: relativeY,
       }
-      
+
       setNewMemoPosition(clickPosition)
-      
+
       // 新規作成ボタンノードを作成
       const newMemoButton = createVirtualNode({
         id: 'virtual-new-memo-button',
@@ -1170,9 +1176,9 @@ export function GraphCanvas() {
         area: 'knowledge_base',
         title: '+',
         position: clickPosition,
-        metadata: { buttonType: 'new-memo' }
+        metadata: { buttonType: 'new-memo' },
       })
-      
+
       setVirtualNodes([newMemoButton])
       setSelectedNode(null)
       setShowTagButton(null)
@@ -1181,105 +1187,101 @@ export function GraphCanvas() {
 
   return (
     <>
-      <div className="relative h-full w-full overflow-visible" style={{ backgroundColor: '#f9fafb' }}>
-      
-      <Stage
-        ref={stageRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        scaleX={scale}
-        scaleY={scale}
-        x={position.x}
-        y={position.y}
-        draggable={!isNodeDragging}
-        onWheel={handleWheel}
-        onDragEnd={handleDragEnd}
-        onClick={handleStageClick}
+      <div
+        className="relative h-full w-full overflow-visible"
+        style={{ backgroundColor: '#f9fafb' }}
       >
-        <Layer ref={layerRef}>
-          {/* 背景 */}
-          <Rect
-            x={0}
-            y={0}
-            width={3000}
-            height={3000 * 5}
-            fill="#f9fafb"
-            listening={true}
-            onClick={() => {
-              setSelectedNode(null)
-              setShowTagButton(null)
-              setVirtualNodes([])
-              setIsCreatingTag(false)
-            }}
-            onDblClick={handleStageDblClick}
-          />
-          
-          {/* エリア境界線 */}
-          <AreaDividers width={3000} height={3000} />
-          
-          
-          {/* エッジ */}
-          <Group>
-            {edges.map((edge) => (
-              <GraphEdge
-                key={edge.id}
-                edge={edge}
-                nodes={nodes}
-              />
-            ))}
-          </Group>
-          
-          {/* 親ノードとボタンノードを繋ぐ点線（ノードの下に描画） */}
-          {virtualNodes.length > 0 && selectedNode && (
+        <Stage
+          ref={stageRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          scaleX={scale}
+          scaleY={scale}
+          x={position.x}
+          y={position.y}
+          draggable={!isNodeDragging}
+          onWheel={handleWheel}
+          onDragEnd={handleDragEnd}
+          onClick={handleStageClick}
+        >
+          <Layer ref={layerRef}>
+            {/* 背景 */}
+            <Rect
+              x={0}
+              y={0}
+              width={3000}
+              height={3000 * 5}
+              fill="#f9fafb"
+              listening={true}
+              onClick={() => {
+                setSelectedNode(null)
+                setShowTagButton(null)
+                setVirtualNodes([])
+                setIsCreatingTag(false)
+              }}
+              onDblClick={handleStageDblClick}
+            />
+
+            {/* エリア境界線 */}
+            <AreaDividers width={3000} height={3000} />
+
+            {/* エッジ */}
             <Group>
-              {virtualNodes.map((buttonNode, index) => (
-                <GraphEdge
-                  key={`virtual-edge-${index}`}
-                  edge={{
-                    id: `virtual-edge-${index}`,
-                    source_id: selectedNode.id,
-                    target_id: buttonNode.id,
-                    type: 'tag',
-                    // 仮想エッジのためのデフォルト値
-                    is_branch: false,
-                    is_merge: false,
-                    created_at: new Date().toISOString(),
-                    branch_from: null,
-                    merge_to: null
-                  }}
-                  nodes={[...nodes, ...virtualNodes]}
+              {edges.map((edge) => (
+                <GraphEdge key={edge.id} edge={edge} nodes={nodes} />
+              ))}
+            </Group>
+
+            {/* 親ノードとボタンノードを繋ぐ点線（ノードの下に描画） */}
+            {virtualNodes.length > 0 && selectedNode && (
+              <Group>
+                {virtualNodes.map((buttonNode, index) => (
+                  <GraphEdge
+                    key={`virtual-edge-${index}`}
+                    edge={{
+                      id: `virtual-edge-${index}`,
+                      source_id: selectedNode.id,
+                      target_id: buttonNode.id,
+                      type: 'tag',
+                      // 仮想エッジのためのデフォルト値
+                      is_branch: false,
+                      is_merge: false,
+                      created_at: new Date().toISOString(),
+                      branch_from: null,
+                      merge_to: null,
+                    }}
+                    nodes={[...nodes, ...virtualNodes]}
+                  />
+                ))}
+              </Group>
+            )}
+
+            {/* ノード */}
+            <Group>
+              {nodes.map((node) => (
+                <GraphNode
+                  key={node.id}
+                  node={node}
+                  onClick={() => handleNodeClick(node)}
+                  onDblClick={() => handleNodeDblClick(node)}
+                  selected={selectedNode?.id === node.id}
+                  onDragStart={() => setIsNodeDragging(true)}
+                  onDragEnd={() => setIsNodeDragging(false)}
+                />
+              ))}
+              {/* ボタンノード */}
+              {virtualNodes.map((node) => (
+                <GraphNode
+                  key={node.id}
+                  node={node}
+                  onClick={() => handleNodeClick(node)}
+                  selected={false}
                 />
               ))}
             </Group>
-          )}
-          
-          
-          {/* ノード */}
-          <Group>
-            {nodes.map((node) => (
-              <GraphNode
-                key={node.id}
-                node={node}
-                onClick={() => handleNodeClick(node)}
-                onDblClick={() => handleNodeDblClick(node)}
-                selected={selectedNode?.id === node.id}
-                onDragStart={() => setIsNodeDragging(true)}
-                onDragEnd={() => setIsNodeDragging(false)}
-              />
-            ))}
-            {/* ボタンノード */}
-            {virtualNodes.map((node) => (
-              <GraphNode
-                key={node.id}
-                node={node}
-                onClick={() => handleNodeClick(node)}
-                selected={false}
-              />
-            ))}
-          </Group>
-        </Layer>
-      </Stage>
-      
+          </Layer>
+        </Stage>
+
         {/* ノード作成モーダル */}
         <CreateNodeModal
           isOpen={isCreateModalOpen}
@@ -1287,66 +1289,59 @@ export function GraphCanvas() {
           area={createArea}
           position={createPosition}
         />
-      
-      
-      {/* タグ作成ツール（旧UI、後で削除） */}
-      {/* <TagCreationTool /> */}
-      
-      {/* インラインタグ作成 */}
-      {isCreatingTag && selectedNode && (
-        <InlineTagCreator
-          parentNode={selectedNode}
-          onClose={() => {
-            setIsCreatingTag(false)
-            setShowTagButton(null)
-          }}
-          onCreated={() => {
-            setIsCreatingTag(false)
-            setShowTagButton(null)
-          }}
-        />
-      )}
-      
-      {/* タスク依存関係マネージャー */}
-      <TaskDependencyManager />
-      
-      {/* タスク状態メニュー */}
-      {selectedNode && selectedNode.type === 'task' && (
-        <TaskStatusMenu node={selectedNode} />
-      )}
-      
-      {/* 計測管理 */}
-      <MeasurementManager />
-      
-      {/* 改善決定ツール */}
-      <ImprovementDecisionTool />
-      
+
+        {/* インラインタグ作成 */}
+        {isCreatingTag && selectedNode && (
+          <InlineTagCreator
+            parentNode={selectedNode}
+            onClose={() => {
+              setIsCreatingTag(false)
+              setShowTagButton(null)
+            }}
+            onCreated={() => {
+              setIsCreatingTag(false)
+              setShowTagButton(null)
+            }}
+          />
+        )}
+
+        {/* タスク依存関係マネージャー */}
+        <TaskDependencyManager />
+
+        {/* タスク状態メニュー */}
+        {selectedNode && selectedNode.type === 'task' && <TaskStatusMenu node={selectedNode} />}
+
+        {/* 計測管理 */}
+        <MeasurementManager />
+
+        {/* 改善決定ツール */}
+        <ImprovementDecisionTool />
+
         {/* レポート生成 */}
         <ReportGenerator />
-        
+
         {/* リンク作成モードインジケーター */}
         <FloatingIndicator />
       </div>
-      
+
       {/* MDエディタ（サイドパネル） */}
       {editorNode && (
-        <div style={{
-          position: 'fixed',
-          top: '64px',
-          right: 0,
-          height: 'calc(100vh - 64px)',
-          width: '384px',
-          zIndex: 50,
-          backgroundColor: '#ffffff',
-          boxShadow: '-4px 0 6px rgba(0, 0, 0, 0.1)'
-        }}>
-          <MDEditor
-            node={editorNode}
-            onClose={() => setEditorNode(null)}
-          />
+        <div
+          style={{
+            position: 'fixed',
+            top: '64px',
+            right: 0,
+            height: 'calc(100vh - 64px)',
+            width: '384px',
+            zIndex: 50,
+            backgroundColor: '#ffffff',
+            boxShadow: '-4px 0 6px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <MDEditor node={editorNode} onClose={() => setEditorNode(null)} />
         </div>
       )}
-      
+
       {/* 計測期間設定モーダル */}
       <MeasurementPeriodModal
         isOpen={measurementPeriodModal.isOpen}

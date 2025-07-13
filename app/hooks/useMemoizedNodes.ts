@@ -17,27 +17,25 @@ export function useMemoizedNodes(
 ) {
   // エリアに応じたノードをフィルタリング（位置以外の属性でメモ化）
   const areaNodes = useMemo(() => {
-    const filtered = nodes.filter(n => n.area === area)
-    const virtualFiltered = virtualNodes.filter(n => n.area === area)
+    const filtered = nodes.filter((n) => n.area === area)
+    const virtualFiltered = virtualNodes.filter((n) => n.area === area)
     return [...filtered, ...virtualFiltered]
   }, [
     // 位置以外の属性の変更を検出
-    nodes.map(n => `${n.id}-${n.area}-${n.node_type}-${n.title}`).join(','),
-    virtualNodes.map(n => `${n.id}-${n.area}-${n.node_type}-${n.title}`).join(','),
-    area
+    nodes.map((n) => `${n.id}-${n.area}-${n.type}-${n.title}`).join(','),
+    virtualNodes.map((n) => `${n.id}-${n.area}-${n.type}-${n.title}`).join(','),
+    area,
   ])
-  
+
   // エリアに応じたエッジをフィルタリング
   const areaEdges = useMemo(() => {
-    const nodeIds = new Set(areaNodes.map(n => n.id))
-    return edges.filter(e => 
-      nodeIds.has(e.source_id) && nodeIds.has(e.target_id)
-    )
+    const nodeIds = new Set(areaNodes.map((n) => n.id))
+    return edges.filter((e) => nodeIds.has(e.source_id) && nodeIds.has(e.target_id))
   }, [
     // エッジの接続関係の変更を検出
-    edges.map(e => `${e.id}-${e.source_id}-${e.target_id}-${e.type}`).join(','),
-    areaNodes.map(n => n.id).join(',')
+    edges.map((e) => `${e.id}-${e.source_id}-${e.target_id}-${e.type}`).join(','),
+    areaNodes.map((n) => n.id).join(','),
   ])
-  
+
   return { areaNodes, areaEdges }
 }

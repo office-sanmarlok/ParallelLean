@@ -14,13 +14,14 @@ module.exports = {
         'build-green': '#10B981',
         'measure-orange': '#F59E0B',
         'learn-red': '#EF4444',
-        'gold': '#FFD700',
+        gold: '#FFD700',
       },
       backgroundImage: {
-        'diagonal-lines': 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,.1) 10px, rgba(0,0,0,.1) 20px)',
+        'diagonal-lines':
+          'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,.1) 10px, rgba(0,0,0,.1) 20px)',
       },
       animation: {
-        'glow': 'glow 2s ease-in-out infinite',
+        glow: 'glow 2s ease-in-out infinite',
       },
       keyframes: {
         glow: {

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -28,9 +28,9 @@ export default function LoginPage() {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         })
-        
+
         if (error) throw error
-        
+
         if (data?.user) {
           alert('確認メールを送信しました。メールを確認してください。')
         }
@@ -39,9 +39,9 @@ export default function LoginPage() {
           email,
           password,
         })
-        
+
         if (error) throw error
-        
+
         if (data?.user) {
           router.push('/')
           router.refresh()
@@ -65,7 +65,7 @@ export default function LoginPage() {
             ParallelLeanへようこそ
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="-space-y-px rounded-md shadow-sm">
             <div>

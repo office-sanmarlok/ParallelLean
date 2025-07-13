@@ -26,11 +26,11 @@ export function ImprovementDecisionTool() {
         .from('nodes')
         .update({
           metadata: {
-            ...(selectedNode.metadata as any || {}),
+            ...((selectedNode.metadata as any) || {}),
             decision: decision,
             decision_reason: decisionReason,
-            decision_date: new Date().toISOString()
-          }
+            decision_date: new Date().toISOString(),
+          },
         })
         .eq('id', selectedNode.id)
 
@@ -50,9 +50,10 @@ export function ImprovementDecisionTool() {
 
   const handleRebuild = async () => {
     // 改善案から新しいProposalを生成
-    const improvementPosition = typeof selectedNode.position === 'object' && selectedNode.position !== null
-      ? (selectedNode.position as any)
-      : { x: 500, y: 1600 }
+    const improvementPosition =
+      typeof selectedNode.position === 'object' && selectedNode.position !== null
+        ? (selectedNode.position as any)
+        : { x: 500, y: 1600 }
 
     const { data: newProposal, error } = await supabase
       .from('nodes')
@@ -63,13 +64,13 @@ export function ImprovementDecisionTool() {
         content: `改善理由: ${decisionReason}`,
         position: {
           x: improvementPosition.x + 200,
-          y: 400  // IdeaStockエリアに戻る
+          y: 400, // IdeaStockエリアに戻る
         },
         size: 80,
         metadata: {
           improved_from: selectedNode.id,
-          improvement_reason: decisionReason
-        }
+          improvement_reason: decisionReason,
+        },
       })
       .select()
       .single()
@@ -89,9 +90,7 @@ export function ImprovementDecisionTool() {
         .select()
         .single()
 
-      if (newProjectLine) {
-        useGraphStore.getState().addProjectLine(newProjectLine)
-      }
+      // プロジェクトラインは別の処理で管理
 
       // ImprovementからProposalへのエッジを作成
       const { data: edge } = await supabase
@@ -114,9 +113,10 @@ export function ImprovementDecisionTool() {
 
   const handlePivot = async () => {
     // 撤退の記録を作成
-    const improvementPosition = typeof selectedNode.position === 'object' && selectedNode.position !== null
-      ? (selectedNode.position as any)
-      : { x: 500, y: 1600 }
+    const improvementPosition =
+      typeof selectedNode.position === 'object' && selectedNode.position !== null
+        ? (selectedNode.position as any)
+        : { x: 500, y: 1600 }
 
     const { data: pivotNode, error } = await supabase
       .from('nodes')
@@ -126,14 +126,14 @@ export function ImprovementDecisionTool() {
         title: `撤退: ${selectedNode.title.substring(0, 20)}...`,
         position: {
           x: Math.random() * 1000 + 500,
-          y: Math.random() * 300 + 100
+          y: Math.random() * 300 + 100,
         },
         size: 60,
         metadata: {
           pivot_from: selectedNode.id,
           pivot_reason: decisionReason,
-          pivot_date: new Date().toISOString()
-        }
+          pivot_date: new Date().toISOString(),
+        },
       })
       .select()
       .single()

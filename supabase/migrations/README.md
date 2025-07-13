@@ -3,11 +3,13 @@
 ## 新しいマイグレーションファイル
 
 ### 003_create_progress_to_build_function.sql
+
 このマイグレーションは、ProposalからBuildへの進行時にトランザクション処理を行うRPC関数を作成します。
 
 ## 適用方法
 
 ### 方法1: Supabase Dashboard（推奨）
+
 1. [Supabase Dashboard](https://app.supabase.com)にログイン
 2. 該当プロジェクトを選択
 3. 左サイドバーの「SQL Editor」をクリック
@@ -16,6 +18,7 @@
 6. 「Run」ボタンをクリックして実行
 
 ### 方法2: Supabase CLI
+
 ```bash
 # Supabase CLIがインストールされている場合
 supabase db push
@@ -36,5 +39,6 @@ supabase db push
 そして、RPC関数を使用するコードに置き換えてください。
 
 ## 注意事項
+
 - マイグレーション適用前は、元の実装（個別のINSERT文）が使用されます
 - マイグレーション適用後は、トランザクション処理により、エラー時の自動ロールバックが有効になります

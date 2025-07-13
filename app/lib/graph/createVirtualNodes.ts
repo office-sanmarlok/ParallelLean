@@ -1,16 +1,15 @@
 import type { Node } from '@/src/types/database'
+import type { ExtendedNode, AllNodeType } from '@/src/types/graph'
 
 // 仮想ノード（ボタンノード）の作成ヘルパー
-export function createVirtualNode(
-  baseData: {
-    id: string
-    type: string
-    area: Node['area']
-    title: string
-    position: { x: number; y: number }
-    metadata?: any
-  }
-): Node {
+export function createVirtualNode(baseData: {
+  id: string
+  type: AllNodeType
+  area: Node['area']
+  title: string
+  position: { x: number; y: number }
+  metadata?: any
+}): ExtendedNode {
   return {
     ...baseData,
     content: '',
@@ -23,5 +22,7 @@ export function createVirtualNode(
     size: null,
     task_status: null,
     vertical_order: null,
-  } as Node
+    project_line_id: null,
+    isVirtual: true,
+  } as ExtendedNode
 }

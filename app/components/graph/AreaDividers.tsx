@@ -23,19 +23,14 @@ export function AreaDividers({ width, height }: AreaDividersProps) {
     <Group>
       {AREA_ORDER.map((area, index) => {
         const y = index * areaHeight
-        
+
         return (
           <Group key={area}>
             {/* エリア境界線 */}
             {index > 0 && (
-              <Line
-                points={[0, y, width, y]}
-                stroke="#E5E7EB"
-                strokeWidth={1}
-                dash={[10, 5]}
-              />
+              <Line points={[0, y, width, y]} stroke="#E5E7EB" strokeWidth={1} dash={[10, 5]} />
             )}
-            
+
             {/* エリアラベル */}
             <Text
               x={20}

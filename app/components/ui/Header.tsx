@@ -21,13 +21,11 @@ export function Header() {
           <div className="flex items-center">
             <h1 className="text-xl font-bold">ParallelLean</h1>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             {user ? (
               <>
-                <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {user.email}
-                </span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{user.email}</span>
                 <button
                   onClick={handleSignOut}
                   className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"

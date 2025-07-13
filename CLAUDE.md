@@ -37,6 +37,7 @@ npm run test
 ## アーキテクチャ
 
 ### 技術スタック
+
 - **フロントエンド**: Next.js 14 (App Router)、TypeScript、React 18
 - **グラフビュー**: D3.js v7（物理演算）、Konva.js（Canvas描画）
 - **状態管理**: Zustand（グローバル）、Valtio（グラフ詳細）
@@ -45,6 +46,7 @@ npm run test
 - **エディタ**: CodeMirror 6
 
 ### 主要ディレクトリ構造
+
 ```
 /app
   /components/graph    # グラフビューコンポーネント
@@ -62,11 +64,13 @@ npm run test
 ## グラフビューの実装詳細
 
 ### エリアとノードタイプの制約
+
 1. **KnowledgeBase**: 自由配置（Force Simulation）
 2. **IdeaStock以降**: 垂直線（プロジェクトライン）に沿った配置
 3. **Build**: タスクの依存関係により分岐・合流可能
 
 ### 物理演算の最適化
+
 - Canvas（Konva.js）による高速レンダリング
 - ビューポート外のノードは描画スキップ
 - エリアごとに異なる物理制約を適用
@@ -74,6 +78,7 @@ npm run test
 ## データベース設計
 
 ### 主要テーブル
+
 - **nodes**: 全ノードタイプを管理（メモ、タグ、提案、タスク等）
 - **edges**: ノード間の関係（参照、タグ付け、タスク依存）
 - **project_lines**: プロジェクトライン（垂直配置の基準線）
@@ -84,6 +89,7 @@ npm run test
 - **attachments**: 添付ファイル
 
 ### トリガーとRLS
+
 - 更新時刻の自動設定
 - Memoサイズの自動計算
 - 認証ユーザーは全データにアクセス可能
@@ -91,6 +97,7 @@ npm run test
 ## 環境変数
 
 `.env.local`に以下を設定:
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -113,16 +120,19 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ## 重要な実装パターン
 
 ### グラフノードの状態管理
+
 - **グローバル状態**: Zustand (`/app/stores/graphStore.ts`)
 - **詳細状態**: Valtio（グラフ内の詳細な状態管理）
 - **位置同期**: `usePositionSync`フックで物理演算とCanvas座標を同期
 
 ### 物理演算の制御
+
 - **KnowledgeBase**: 自由配置（D3.js Force Simulation）
 - **IdeaStock以降**: 垂直制約付き配置（`useVerticalConstraints`）
 - **最適化**: `useMemoizedNodes`でノードの再計算を最小化
 
 ### エリア別ノード作成ルール
+
 ```typescript
 // KnowledgeBase: Memo, KBTag
 // IdeaStock: Proposal, Research, ISTag
@@ -132,4 +142,5 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
 ## 開発ログ
+
 開発時の変更は `/docs/devlog.md` に記録すること

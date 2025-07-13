@@ -8,7 +8,7 @@ export default function TestLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [email, setEmail] = useState('test2@example.com')
-  
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -20,9 +20,9 @@ export default function TestLoginPage() {
       const response = await fetch('/api/auth/create-test-user', {
         method: 'POST',
       })
-      
+
       const data = await response.json()
-      
+
       if (!response.ok) {
         setMessage(`エラー: ${data.error}`)
       } else {
@@ -44,7 +44,7 @@ export default function TestLoginPage() {
         email: email,
         password: 'password123',
       })
-      
+
       if (error) {
         setMessage(`エラー: ${error.message}`)
       } else if (data?.user) {
@@ -66,9 +66,7 @@ export default function TestLoginPage() {
       <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-6 shadow-md">
         <div>
           <h2 className="text-center text-3xl font-bold">開発用ログイン</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            テストユーザーでログインします
-          </p>
+          <p className="mt-2 text-center text-sm text-gray-600">テストユーザーでログインします</p>
         </div>
 
         <div className="space-y-4">
@@ -87,8 +85,12 @@ export default function TestLoginPage() {
 
           <div className="border-t pt-4">
             <div className="rounded-md bg-gray-100 p-4 mb-4">
-              <p className="text-sm"><strong>Email:</strong> {email}</p>
-              <p className="text-sm"><strong>Password:</strong> password123</p>
+              <p className="text-sm">
+                <strong>Email:</strong> {email}
+              </p>
+              <p className="text-sm">
+                <strong>Password:</strong> password123
+              </p>
             </div>
 
             <button
@@ -101,7 +103,9 @@ export default function TestLoginPage() {
           </div>
 
           {message && (
-            <p className={`text-center text-sm ${message.includes('エラー') ? 'text-red-600' : 'text-green-600'}`}>
+            <p
+              className={`text-center text-sm ${message.includes('エラー') ? 'text-red-600' : 'text-green-600'}`}
+            >
               {message}
             </p>
           )}

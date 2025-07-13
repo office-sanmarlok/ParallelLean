@@ -1,7 +1,8 @@
 import type { Database } from './database.generated'
 
 // 基本の型定義
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+export type Tables<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row']
 export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]
 
 // テーブルの型エイリアス

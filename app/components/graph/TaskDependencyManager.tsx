@@ -74,13 +74,10 @@ export function TaskDependencyManager() {
 
   const updateVerticalLayout = async () => {
     // Buildエリアのタスクを取得
-    const buildTasks = nodes.filter(n => n.type === 'task' && n.area === 'build')
-    
+    const buildTasks = nodes.filter((n) => n.type === 'task' && n.area === 'build')
+
     // 依存関係グラフを構築
-    const { data: edges } = await supabase
-      .from('edges')
-      .select('*')
-      .eq('type', 'dependency')
+    const { data: edges } = await supabase.from('edges').select('*').eq('type', 'dependency')
 
     if (!edges) return
 
@@ -88,12 +85,12 @@ export function TaskDependencyManager() {
     const graph = new Map<string, string[]>()
     const inDegree = new Map<string, number>()
 
-    buildTasks.forEach(task => {
+    buildTasks.forEach((task) => {
       graph.set(task.id, [])
       inDegree.set(task.id, 0)
     })
 
-    edges.forEach(edge => {
+    edges.forEach((edge) => {
       if (graph.has(edge.source_id) && graph.has(edge.target_id)) {
         graph.get(edge.source_id)!.push(edge.target_id)
         inDegree.set(edge.target_id, (inDegree.get(edge.target_id) || 0) + 1)
@@ -115,9 +112,9 @@ export function TaskDependencyManager() {
       const current = queue.shift()!
       const currentLevel = levels.get(current) || 0
 
-      graph.get(current)?.forEach(neighbor => {
+      graph.get(current)?.forEach((neighbor) => {
         inDegree.set(neighbor, (inDegree.get(neighbor) || 0) - 1)
-        
+
         if (inDegree.get(neighbor) === 0) {
           queue.push(neighbor)
           levels.set(neighbor, currentLevel + 1)
@@ -129,7 +126,7 @@ export function TaskDependencyManager() {
     const levelNodes = new Map<number, Node[]>()
     let maxLevel = 0
 
-    buildTasks.forEach(task => {
+    buildTasks.forEach((task) => {
       const level = levels.get(task.id) || 0
       if (!levelNodes.has(level)) {
         levelNodes.set(level, [])
@@ -139,7 +136,7 @@ export function TaskDependencyManager() {
     })
 
     // Y座標を計算して更新
-    const buildAreaStart = 800  // Buildエリアの開始Y座標
+    const buildAreaStart = 800 // Buildエリアの開始Y座標
     const levelHeight = 150
 
     for (let level = 0; level <= maxLevel; level++) {
@@ -147,16 +144,14 @@ export function TaskDependencyManager() {
       const y = buildAreaStart + level * levelHeight
 
       for (const node of nodesAtLevel) {
-        const position = typeof node.position === 'object' && node.position !== null
-          ? (node.position as any)
-          : { x: 500, y: y }
+        const position =
+          typeof node.position === 'object' && node.position !== null
+            ? (node.position as any)
+            : { x: 500, y: y }
 
         const newPosition = { x: position.x, y }
 
-        await supabase
-          .from('nodes')
-          .update({ position: newPosition })
-          .eq('id', node.id)
+        await supabase.from('nodes').update({ position: newPosition }).eq('id', node.id)
 
         useGraphStore.getState().updateNode(node.id, { position: newPosition })
       }
@@ -164,10 +159,8 @@ export function TaskDependencyManager() {
   }
 
   // 他のBuildエリアのタスクを取得
-  const otherTasks = nodes.filter(n => 
-    n.type === 'task' && 
-    n.area === 'build' && 
-    n.id !== selectedNode.id
+  const otherTasks = nodes.filter(
+    (n) => n.type === 'task' && n.area === 'build' && n.id !== selectedNode.id
   )
 
   if (!linkingMode) {
@@ -194,10 +187,10 @@ export function TaskDependencyManager() {
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
         依存先のタスクを選択してください
       </p>
-      
+
       {otherTasks.length > 0 ? (
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {otherTasks.map(task => (
+          {otherTasks.map((task) => (
             <button
               key={task.id}
               onClick={() => createDependency(task)}
@@ -208,11 +201,9 @@ export function TaskDependencyManager() {
           ))}
         </div>
       ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          他のタスクがありません
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">他のタスクがありません</p>
       )}
-      
+
       <button
         onClick={cancelLinking}
         className="mt-3 w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm"
