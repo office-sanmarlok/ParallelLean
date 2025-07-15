@@ -40,7 +40,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
     e.preventDefault()
 
     if (!title.trim()) {
-      setError('タイトルは必須です')
+      setError('Title is required')
       return
     }
 
@@ -132,7 +132,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
               marginBottom: '16px',
             }}
           >
-            新規ノード作成 - {area}
+            Create New Node - {area}
           </h3>
 
           <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
@@ -148,7 +148,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
                   marginBottom: '4px',
                 }}
               >
-                タイプ
+                Type
               </label>
               <select
                 id="type"
@@ -185,7 +185,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
                   marginBottom: '4px',
                 }}
               >
-                タイトル
+                Title
               </label>
               <input
                 type="text"
@@ -221,7 +221,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
                     marginBottom: '4px',
                   }}
                 >
-                  内容
+                  Content
                 </label>
                 <textarea
                   id="content"
@@ -288,7 +288,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
                   opacity: isLoading ? 0.5 : 1,
                 }}
               >
-                キャンセル
+                Cancel
               </button>
               <button
                 type="submit"
@@ -304,7 +304,7 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
                   border: 'none',
                 }}
               >
-                {isLoading ? '作成中...' : '作成'}
+                {isLoading ? 'Creating...' : 'Create'}
               </button>
             </div>
           </form>
@@ -316,30 +316,30 @@ export function CreateNodeModal({ isOpen, onClose, area, position }: CreateNodeM
 
 function getNodeTypeLabel(type: NodeType): string {
   const labels: Record<NodeType, string> = {
-    memo: 'メモ',
-    kb_tag: 'KBタグ',
-    proposal: '提案',
-    research: 'リサーチ',
-    is_tag: 'ISタグ',
-    task: 'タスク',
+    memo: 'Memo',
+    kb_tag: 'KB Tag',
+    proposal: 'Proposal',
+    research: 'Research',
+    is_tag: 'IS Tag',
+    task: 'Task',
     mvp: 'MVP',
-    dashboard: 'ダッシュボード',
-    improvement: '改善',
+    dashboard: 'Dashboard',
+    improvement: 'Improvement',
   }
   return labels[type] || type
 }
 
 function getPlaceholder(type: NodeType): string {
   const placeholders: Record<NodeType, string> = {
-    memo: 'アイデアや知見を記録...',
-    kb_tag: 'タグ名...',
-    proposal: '提案タイトル...',
-    research: 'リサーチ課題...',
-    is_tag: 'タグ名...',
-    task: 'タスク名...',
-    mvp: 'MVP名...',
-    dashboard: 'ダッシュボード名...',
-    improvement: '改善内容...',
+    memo: 'Record ideas and insights...',
+    kb_tag: 'Tag name...',
+    proposal: 'Proposal title...',
+    research: 'Research topic...',
+    is_tag: 'Tag name...',
+    task: 'Task name...',
+    mvp: 'MVP name...',
+    dashboard: 'Dashboard name...',
+    improvement: 'Improvement details...',
   }
   return placeholders[type] || ''
 }

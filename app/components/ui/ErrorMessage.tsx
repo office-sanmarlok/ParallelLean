@@ -23,7 +23,7 @@ export function ErrorMessage({ message, onRetry }: ErrorMessageProps) {
         </div>
         <div className="ml-3">
           <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-            エラーが発生しました
+            An error occurred
           </h3>
           <div className="mt-2 text-sm text-red-700 dark:text-red-300">
             <p>{message}</p>
@@ -34,7 +34,7 @@ export function ErrorMessage({ message, onRetry }: ErrorMessageProps) {
                 onClick={onRetry}
                 className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
               >
-                再試行
+                Retry
               </button>
             </div>
           )}

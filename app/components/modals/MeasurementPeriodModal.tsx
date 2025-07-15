@@ -16,7 +16,7 @@ export function MeasurementPeriodModal({
   mvpNodeId,
   onClose,
 }: MeasurementPeriodModalProps) {
-  const [period, setPeriod] = useState(30) // デフォルト30日
+  const [period, setPeriod] = useState(30) // Default: 30 days
   const [isCreating, setIsCreating] = useState(false)
   const { nodes, addNode, addEdge } = useGraphStore()
   const supabase = createClient()
@@ -36,7 +36,7 @@ export function MeasurementPeriodModal({
 
   const handleSubmit = async () => {
     if (period < 1 || period > 365) {
-      alert('計測期間は1〜365日の間で設定してください')
+      alert('Please set the measurement period between 1 and 365 days')
       return
     }
 
@@ -48,16 +48,16 @@ export function MeasurementPeriodModal({
           ? (mvpNode.position as any)
           : { x: 0, y: 0 }
 
-      // Dashboardノードを作成
+      // Create Dashboard node
       const { data: dashboardNode, error: nodeError } = await supabase
         .from('nodes')
         .insert({
           type: 'dashboard',
           area: 'measure',
           title: `${mvpNode.title} - Dashboard`,
-          content: `# ${mvpNode.title} ダッシュボード\n\n## 計測期間: ${period}日\n\n## KPI\n\n## データ分析\n`,
+          content: `# ${mvpNode.title} Dashboard\n\n## Measurement Period: ${period} days\n\n## KPI\n\n## Data Analysis\n`,
           position: {
-            x: mvpPos.x + 200, // MVPノードの右側に配置
+            x: mvpPos.x + 200, // Place to the right of MVP node
             y: mvpPos.y,
           },
           metadata: {
@@ -71,7 +71,7 @@ export function MeasurementPeriodModal({
 
       if (nodeError) throw nodeError
 
-      // エッジを作成（MVPからDashboardへ）
+      // Create edge (from MVP to Dashboard)
       const { data: edge, error: edgeError } = await supabase
         .from('edges')
         .insert({
@@ -84,17 +84,17 @@ export function MeasurementPeriodModal({
 
       if (edgeError) throw edgeError
 
-      // ストアに追加
+      // Add to store
       addNode(dashboardNode)
       if (edge) addEdge(edge)
 
-      console.log(`計測期間${period}日でDashboardノードを作成しました`)
+      console.log(`Created Dashboard node with measurement period of ${period} days`)
 
-      // モーダルを閉じる
+      // Close modal
       onClose()
     } catch (error) {
       console.error('Failed to create dashboard:', error)
-      alert('Dashboardノードの作成に失敗しました')
+      alert('Failed to create Dashboard node')
     } finally {
       setIsCreating(false)
     }
@@ -104,7 +104,7 @@ export function MeasurementPeriodModal({
 
   return (
     <>
-      {/* 背景のオーバーレイ */}
+      {/* Background overlay */}
       <div
         style={{
           position: 'fixed',
@@ -118,7 +118,7 @@ export function MeasurementPeriodModal({
         onClick={onClose}
       />
 
-      {/* モーダル本体 */}
+      {/* Modal body */}
       <div
         style={{
           position: 'fixed',
@@ -136,11 +136,11 @@ export function MeasurementPeriodModal({
         <h2
           style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '16px', color: '#1F2937' }}
         >
-          計測期間の設定
+          Set Measurement Period
         </h2>
 
         <p style={{ color: '#6B7280', marginBottom: '16px' }}>
-          MVPの計測期間を設定してください。この期間が経過すると、MVPノードとDashboardノードはLearnエリアに移動します。
+          Please set the measurement period for the MVP. After this period, the MVP node and Dashboard node will move to the Learn area.
         </p>
 
         <div style={{ marginBottom: '24px' }}>
@@ -153,7 +153,7 @@ export function MeasurementPeriodModal({
               marginBottom: '8px',
             }}
           >
-            計測期間（日数）
+            Measurement Period (days)
           </label>
           <input
             type="number"
@@ -170,7 +170,7 @@ export function MeasurementPeriodModal({
             }}
           />
           <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '4px' }}>
-            1〜365日の間で設定可能（デフォルト: 30日）
+            Can be set between 1 and 365 days (Default: 30 days)
           </p>
         </div>
 
@@ -187,7 +187,7 @@ export function MeasurementPeriodModal({
               opacity: isCreating ? 0.5 : 1,
             }}
           >
-            キャンセル
+            Cancel
           </button>
           <button
             onClick={handleSubmit}
@@ -202,7 +202,7 @@ export function MeasurementPeriodModal({
               opacity: isCreating ? 0.5 : 1,
             }}
           >
-            {isCreating ? '作成中...' : 'Dashboardを作成'}
+            {isCreating ? 'Creating...' : 'Create Dashboard'}
           </button>
         </div>
       </div>

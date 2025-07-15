@@ -26,11 +26,11 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
         .eq('id', node.id)
 
       if (!error) {
-        // ストアを更新
+        // Update store
         updateNode(node.id, { task_status: newStatus })
         setIsOpen(false)
 
-        // 全タスク完了時のMVP自動生成をチェック
+        // Check for automatic MVP generation when all tasks are completed
         checkForMVPGeneration()
       }
     } catch (error) {
@@ -39,10 +39,10 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
   }
 
   const checkForMVPGeneration = async () => {
-    // 同じプロジェクトラインの全タスクをチェック
+    // Check all tasks in the same project line
     const { nodes } = useGraphStore.getState()
 
-    // このタスクのプロジェクトラインを見つける
+    // Find the project line for this task
     const { data: edges } = await supabase
       .from('edges')
       .select('*')
@@ -50,7 +50,7 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
 
     if (!edges) return
 
-    // プロジェクトラインに属する全タスクを収集
+    // Collect all tasks belonging to the project line
     const projectTasks: Node[] = []
     const visitedNodes = new Set<string>()
     const queue = [node.id]
@@ -65,7 +65,7 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
         projectTasks.push(currentNode)
       }
 
-      // 接続されたノードを探す
+      // Find connected nodes
       edges.forEach((edge) => {
         if (edge.source_id === currentId && !visitedNodes.has(edge.target_id)) {
           queue.push(edge.target_id)
@@ -76,17 +76,17 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
       })
     }
 
-    // 全タスクが完了しているかチェック
+    // Check if all tasks are completed
     const allCompleted = projectTasks.every((task) => task.task_status === 'completed')
 
     if (allCompleted && projectTasks.length > 0) {
-      // MVP自動生成
+      // Automatic MVP generation
       await generateMVP(projectTasks)
     }
   }
 
   const generateMVP = async (tasks: Node[]) => {
-    // タスクの平均X座標を計算
+    // Calculate average X coordinate of tasks
     const avgX =
       tasks.reduce((sum, task) => {
         const pos =
@@ -94,16 +94,16 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
         return sum + pos
       }, 0) / tasks.length
 
-    // MVPノードを作成
+    // Create MVP node
     const { data: mvpNode, error } = await supabase
       .from('nodes')
       .insert({
         type: 'mvp',
         area: 'measure',
-        title: 'MVP - ' + new Date().toLocaleDateString('ja-JP'),
+        title: 'MVP - ' + new Date().toLocaleDateString('en-US'),
         position: {
           x: avgX,
-          y: 1200, // Measureエリアの位置
+          y: 1200, // Position in Measure area
         },
         size: 100,
       })
@@ -111,18 +111,18 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
       .single()
 
     if (!error && mvpNode) {
-      // 全タスクからMVPへのエッジを作成
+      // Create edges from all tasks to MVP
       for (const task of tasks) {
         await supabase.from('edges').insert({
           source_id: task.id,
           target_id: mvpNode.id,
           type: 'link',
           is_branch: false,
-          is_merge: true, // 合流を示す
+          is_merge: true, // Indicates merge
         })
       }
 
-      // ストアに追加
+      // Add to store
       useGraphStore.getState().addNode(mvpNode)
     }
   }
@@ -143,13 +143,13 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
   const getStatusLabel = (status: TaskStatus) => {
     switch (status) {
       case 'completed':
-        return '完了'
+        return 'Completed'
       case 'pending':
-        return '保留'
+        return 'Pending'
       case 'incomplete':
-        return '未完了'
+        return 'Incomplete'
       default:
-        return status || '未設定'
+        return status || 'Not Set'
     }
   }
 
@@ -168,19 +168,19 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
             onClick={() => updateTaskStatus('incomplete')}
             className="block w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600"
           >
-            未完了
+            Incomplete
           </button>
           <button
             onClick={() => updateTaskStatus('pending')}
             className="block w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-yellow-600"
           >
-            保留
+            Pending
           </button>
           <button
             onClick={() => updateTaskStatus('completed')}
             className="block w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-green-600"
           >
-            完了
+            Completed
           </button>
         </div>
       )}
