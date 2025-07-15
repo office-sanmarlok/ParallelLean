@@ -22,10 +22,11 @@ import { ReportGenerator } from './ReportGenerator'
 import { FloatingIndicator } from './FloatingIndicator'
 import { MeasurementPeriodModal } from '../modals/MeasurementPeriodModal'
 import type { Node, Edge, AreaType } from '@/src/types/database'
-import { AREA_ORDER, AREA_HEIGHT_RATIO } from '@/app/lib/graph/layout'
+import { AREA_ORDER, AREA_HEIGHT_RATIOS } from '@/app/lib/graph/layout'
 import { createButtonNodes } from '@/app/lib/graph/buttonNodes'
 import { createVirtualNode } from '@/app/lib/graph/createVirtualNodes'
 import { useUnifiedForceSimulation } from '@/app/hooks/useUnifiedForceSimulation'
+import { useNodePositionPersist } from '@/app/hooks/useNodePositionPersist'
 
 export function GraphCanvas() {
   const stageRef = useRef<Konva.Stage>(null)
@@ -67,6 +68,9 @@ export function GraphCanvas() {
 
   // 統合Force Simulationを有効化（全エリア・全ノードタイプ対応）
   useUnifiedForceSimulation()
+  
+  // ノード位置の自動保存を有効化
+  useNodePositionPersist()
 
   // ビューポートの計算
   const getViewport = () => {
@@ -148,7 +152,7 @@ export function GraphCanvas() {
       // IdeaStockエリアにProposalノードを作成
       const proposalPosition = {
         x: Math.random() * 1000 + 200,
-        y: 3000 * AREA_HEIGHT_RATIO + 200, // IdeaStockエリアの位置
+        y: 3000 * AREA_HEIGHT_RATIOS.knowledge_base + 200, // IdeaStockエリアの位置（KnowledgeBaseの下）
       }
 
       const { data: proposalNode, error } = await supabase
@@ -1248,9 +1252,18 @@ export function GraphCanvas() {
 
     // クリック位置からエリアを判定
     const relativeY = (pointer.y - position.y) / scale
-    const areaHeight = 3000 * AREA_HEIGHT_RATIO
-    const areaIndex = Math.floor(relativeY / areaHeight)
-    const area = AREA_ORDER[Math.max(0, Math.min(areaIndex, AREA_ORDER.length - 1))]
+    let area: AreaType = 'knowledge_base'
+    let cumulativeHeight = 0
+    
+    // 各エリアの高さを累積して、クリック位置がどのエリアか判定
+    for (const areaName of AREA_ORDER) {
+      const areaHeight = 3000 * AREA_HEIGHT_RATIOS[areaName]
+      if (relativeY < cumulativeHeight + areaHeight) {
+        area = areaName
+        break
+      }
+      cumulativeHeight += areaHeight
+    }
 
     // KnowledgeBaseエリアの場合のみ新規作成ボタンを表示
     if (area === 'knowledge_base') {

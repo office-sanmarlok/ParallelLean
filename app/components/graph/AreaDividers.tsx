@@ -1,7 +1,7 @@
 'use client'
 
 import { Line, Text, Group } from 'react-konva'
-import { AREA_HEIGHT_RATIO, AREA_ORDER } from '@/app/lib/graph/layout'
+import { AREA_HEIGHT_RATIOS, AREA_ORDER } from '@/app/lib/graph/layout'
 
 interface AreaDividersProps {
   width: number
@@ -17,12 +17,20 @@ const AREA_LABELS = {
 }
 
 export function AreaDividers({ width, height }: AreaDividersProps) {
-  const areaHeight = height * AREA_HEIGHT_RATIO
+  // 各エリアの開始Y座標を計算
+  const getAreaStartY = (index: number) => {
+    let y = 0
+    for (let i = 0; i < index; i++) {
+      y += height * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
+    }
+    return y
+  }
 
   return (
     <Group>
       {AREA_ORDER.map((area, index) => {
-        const y = index * areaHeight
+        const y = getAreaStartY(index)
+        const areaHeight = height * AREA_HEIGHT_RATIOS[area]
 
         return (
           <Group key={area}>

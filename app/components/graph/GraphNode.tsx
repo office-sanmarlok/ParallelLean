@@ -154,6 +154,10 @@ function GraphNodeComponent({
       // エリア制約を適用
       let constrainedPosition = applyAreaConstraint(node, newPosition)
 
+      // ドラッグ中の表示位置も境界内に制限
+      e.target.x(constrainedPosition.x)
+      e.target.y(constrainedPosition.y)
+
       // 統合Force Simulationに位置を通知
       if ((window as any).__unifiedSimulationHandleDrag) {
         ;(window as any).__unifiedSimulationHandleDrag(

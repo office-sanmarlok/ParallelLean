@@ -2,7 +2,14 @@ import type { Node, Edge, AreaType } from '@/src/types/database'
 import type { ExtendedNode, AllNodeType } from '@/src/types/graph'
 
 // エリアの高さ設定（ビューポートの比率）
-export const AREA_HEIGHT_RATIO = 0.25 // 各エリアは画面の25%の高さ（20%から拡大）
+// 新しい比率：KB/Measure/Learnを1.5倍、IdeaStockを0.7倍
+export const AREA_HEIGHT_RATIOS: Record<AreaType, number> = {
+  knowledge_base: 0.375,  // 37.5% (25% × 1.5)
+  idea_stock: 0.175,      // 17.5% (25% × 0.7)
+  build: 0.2625,          // 26.25% (残りを調整、合計100%に)
+  measure: 0.09375,       // 9.375% (6.25% × 1.5)
+  learn: 0.09375          // 9.375% (6.25% × 1.5)
+}
 
 // エリアの順序
 export const AREA_ORDER: AreaType[] = ['knowledge_base', 'idea_stock', 'build', 'measure', 'learn']
@@ -11,7 +18,7 @@ export const AREA_ORDER: AreaType[] = ['knowledge_base', 'idea_stock', 'build', 
 export const GRAPH_DIMENSIONS = {
   width: 3000, // 2000から3000に拡大
   height: 3000, // 2000から3000に拡大
-  padding: 100, // パディングも50から100に拡大
+  padding: 30, // 100から30に縮小（境界付近もノード配置可能に）
 }
 
 // ノードのデフォルトサイズ
@@ -21,7 +28,7 @@ export const NODE_SIZES = {
   proposal: 80,
   research: 60,
   is_tag: 60,
-  task: 70,
+  task: 35,  // 70 → 35 に縮小（半分）
   mvp: 100,
   dashboard: 80,
   improvement: 60,
@@ -42,11 +49,18 @@ export const NODE_SIZES = {
 // エリアの境界を計算
 export function getAreaBounds(area: AreaType) {
   const areaIndex = AREA_ORDER.indexOf(area)
-  const areaHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIO
+  
+  // 各エリアの開始Y座標を計算
+  let startY = 0
+  for (let i = 0; i < areaIndex; i++) {
+    startY += GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
+  }
+  
+  const areaHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[area]
 
   return {
-    minY: areaIndex * areaHeight + GRAPH_DIMENSIONS.padding,
-    maxY: (areaIndex + 1) * areaHeight - GRAPH_DIMENSIONS.padding,
+    minY: startY + GRAPH_DIMENSIONS.padding,
+    maxY: startY + areaHeight - GRAPH_DIMENSIONS.padding,
     minX: GRAPH_DIMENSIONS.padding,
     maxX: GRAPH_DIMENSIONS.width - GRAPH_DIMENSIONS.padding,
   }
