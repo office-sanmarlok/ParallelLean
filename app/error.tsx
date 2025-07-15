@@ -10,7 +10,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    // エラーをログに記録
+    // Log error
     console.error('Global error:', error)
   }, [error])
 
@@ -20,15 +20,15 @@ export default function Error({
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">500</h1>
           <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            サーバーエラー
+            Server Error
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-8">
-            {error.message || '申し訳ございません。サーバーでエラーが発生しました。'}
+            {error.message || 'Sorry, a server error has occurred.'}
           </p>
 
           {error.digest && (
             <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
-              エラーID: {error.digest}
+              Error ID: {error.digest}
             </p>
           )}
 
@@ -37,13 +37,13 @@ export default function Error({
               onClick={reset}
               className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
             >
-              再試行
+              Retry
             </button>
             <a
               href="/"
               className="block w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-center"
             >
-              ホームに戻る
+              Back to Home
             </a>
           </div>
         </div>

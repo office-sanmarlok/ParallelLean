@@ -12,7 +12,7 @@ export function ImprovementDecisionTool() {
   const [decisionReason, setDecisionReason] = useState('')
   const supabase = createClient()
 
-  // Improvementノードが選択されている場合のみ表示
+  // Show only when Improvement node is selected
   if (!selectedNode || selectedNode.type !== 'improvement' || selectedNode.area !== 'learn') {
     return null
   }
@@ -21,7 +21,7 @@ export function ImprovementDecisionTool() {
     if (!decision || !decisionReason.trim()) return
 
     try {
-      // 決定内容をノードのmetadataに保存
+      // Save decision content to node metadata
       await supabase
         .from('nodes')
         .update({
@@ -49,7 +49,7 @@ export function ImprovementDecisionTool() {
   }
 
   const handleRebuild = async () => {
-    // 改善案から新しいProposalを生成
+    // Generate new Proposal from improvement plan
     const improvementPosition =
       typeof selectedNode.position === 'object' && selectedNode.position !== null
         ? (selectedNode.position as any)
@@ -60,11 +60,11 @@ export function ImprovementDecisionTool() {
       .insert({
         type: 'proposal',
         area: 'idea_stock',
-        title: `改善版: ${selectedNode.title}`,
-        content: `改善理由: ${decisionReason}`,
+        title: `Improved: ${selectedNode.title}`,
+        content: `Improvement Reason: ${decisionReason}`,
         position: {
           x: improvementPosition.x + 200,
-          y: 400, // IdeaStockエリアに戻る
+          y: 400, // Return to IdeaStock area
         },
         size: 80,
         metadata: {
@@ -78,7 +78,7 @@ export function ImprovementDecisionTool() {
     if (!error && newProposal) {
       addNode(newProposal)
 
-      // 新しいプロジェクトラインを生成
+      // Generate new project line
       const { data: newProjectLine } = await supabase
         .from('project_lines')
         .insert({
@@ -90,9 +90,9 @@ export function ImprovementDecisionTool() {
         .select()
         .single()
 
-      // プロジェクトラインは別の処理で管理
+      // Project line is managed by separate process
 
-      // ImprovementからProposalへのエッジを作成
+      // Create edge from Improvement to Proposal
       const { data: edge } = await supabase
         .from('edges')
         .insert({
@@ -112,7 +112,7 @@ export function ImprovementDecisionTool() {
   }
 
   const handlePivot = async () => {
-    // 撤退の記録を作成
+    // Create pivot record
     const improvementPosition =
       typeof selectedNode.position === 'object' && selectedNode.position !== null
         ? (selectedNode.position as any)
@@ -123,7 +123,7 @@ export function ImprovementDecisionTool() {
       .insert({
         type: 'kb_tag',
         area: 'knowledge_base',
-        title: `撤退: ${selectedNode.title.substring(0, 20)}...`,
+        title: `Pivoted: ${selectedNode.title.substring(0, 20)}...`,
         position: {
           x: Math.random() * 1000 + 500,
           y: Math.random() * 300 + 100,
@@ -141,7 +141,7 @@ export function ImprovementDecisionTool() {
     if (!error && pivotNode) {
       addNode(pivotNode)
 
-      // ImprovementからKBTagへのエッジを作成（知見として保存）
+      // Create edge from Improvement to KBTag (save as knowledge)
       const { data: edge } = await supabase
         .from('edges')
         .insert({
@@ -163,19 +163,19 @@ export function ImprovementDecisionTool() {
   return (
     <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-md">
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-        改善提案: {selectedNode.title}
+        Improvement Proposal: {selectedNode.title}
       </h3>
 
       {!showDecision ? (
         <div className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            この改善提案に基づいて、次のアクションを選択してください。
+            Based on this improvement proposal, please select the next action.
           </p>
           <button
             onClick={() => setShowDecision(true)}
             className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
           >
-            決定を行う
+            Make Decision
           </button>
         </div>
       ) : (
@@ -191,7 +191,7 @@ export function ImprovementDecisionTool() {
                 className="text-indigo-600 focus:ring-indigo-500"
               />
               <span className="text-sm font-medium text-gray-900 dark:text-white">
-                再構築（改善版を作成）
+                Rebuild (Create improved version)
               </span>
             </label>
             <label className="flex items-center space-x-2">
@@ -204,19 +204,19 @@ export function ImprovementDecisionTool() {
                 className="text-indigo-600 focus:ring-indigo-500"
               />
               <span className="text-sm font-medium text-gray-900 dark:text-white">
-                撤退（知見として保存）
+                Pivot (Save as knowledge)
               </span>
             </label>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              決定理由
+              Decision Reason
             </label>
             <textarea
               value={decisionReason}
               onChange={(e) => setDecisionReason(e.target.value)}
-              placeholder="この決定に至った理由を記入..."
+              placeholder="Enter the reason for this decision..."
               rows={3}
               className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
@@ -228,7 +228,7 @@ export function ImprovementDecisionTool() {
               disabled={!decision || !decisionReason.trim()}
               className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
             >
-              決定を確定
+              Confirm Decision
             </button>
             <button
               onClick={() => {
@@ -238,7 +238,7 @@ export function ImprovementDecisionTool() {
               }}
               className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
             >
-              キャンセル
+              Cancel
             </button>
           </div>
         </div>

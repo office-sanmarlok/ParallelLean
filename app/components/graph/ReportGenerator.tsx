@@ -16,7 +16,7 @@ export function ReportGenerator() {
     setIsGenerating(true)
 
     try {
-      // プロポーザルごとにレポートを生成
+      // Generate report for each proposal
       const reports: string[] = []
       const proposals = nodes.filter((n) => n.type === 'proposal')
 
@@ -25,19 +25,19 @@ export function ReportGenerator() {
         reports.push(report)
       }
 
-      // 全体サマリーを追加
+      // Add overall summary
       const summary = generateSummary()
-      const fullReport = `# ParallelLean プロジェクトレポート
+      const fullReport = `# ParallelLean Project Report
       
-生成日時: ${new Date().toLocaleString('ja-JP')}
+Generated: ${new Date().toLocaleString('en-US')}
 
-## 全体サマリー
+## Overall Summary
 ${summary}
 
-## プロジェクト別レポート
+## Project Reports
 ${reports.join('\n\n---\n\n')}
 
-## 知見とタグ
+## Knowledge and Tags
 ${generateKnowledgeBaseReport()}
 `
 
@@ -51,13 +51,13 @@ ${generateKnowledgeBaseReport()}
   }
 
   const generateProjectReport = async (proposal: Node): Promise<string> => {
-    // プロジェクトに関連するノードを収集
+    // Collect nodes related to the project
 
     const projectNodes: Node[] = [proposal]
     const visitedNodes = new Set<string>([proposal.id])
     const queue = [proposal.id]
 
-    // BFSで関連ノードを収集
+    // Collect related nodes using BFS
     while (queue.length > 0) {
       const currentId = queue.shift()!
 
@@ -78,7 +78,7 @@ ${generateKnowledgeBaseReport()}
       }
     }
 
-    // ノードをタイプ別に分類
+    // Classify nodes by type
     const nodesByType = projectNodes.reduce(
       (acc, node) => {
         if (!acc[node.type]) acc[node.type] = []
@@ -88,60 +88,60 @@ ${generateKnowledgeBaseReport()}
       {} as Record<string, Node[]>
     )
 
-    // タスクの完了率を計算
+    // Calculate task completion rate
     const tasks = nodesByType.task || []
     const completedTasks = tasks.filter((t) => t.task_status === 'completed').length
     const taskCompletionRate =
       tasks.length > 0 ? ((completedTasks / tasks.length) * 100).toFixed(1) : 0
 
-    // MVPとダッシュボードの情報
+    // MVP and dashboard information
     const mvp = nodesByType.mvp?.[0]
     const dashboard = nodesByType.dashboard?.[0]
     const improvement = nodesByType.improvement?.[0]
 
-    // 決定情報
+    // Decision information
     let decisionInfo = ''
     if (improvement?.metadata) {
       const metadata = improvement.metadata as any
       if (metadata.decision) {
         decisionInfo = `
-### 決定事項
-- **決定**: ${metadata.decision === 'rebuild' ? '再構築' : '撤退'}
-- **理由**: ${metadata.decision_reason || '未記載'}
-- **日時**: ${metadata.decision_date ? new Date(metadata.decision_date).toLocaleString('ja-JP') : '未定'}`
+### Decision
+- **Decision**: ${metadata.decision === 'rebuild' ? 'Rebuild' : 'Pivot'}
+- **Reason**: ${metadata.decision_reason || 'Not specified'}
+- **Date**: ${metadata.decision_date ? new Date(metadata.decision_date).toLocaleString('en-US') : 'Not set'}`
       }
     }
 
-    return `### プロジェクト: ${proposal.title}
+    return `### Project: ${proposal.title}
 
-**提案**: ${proposal.title}
-**ステータス**: アクティブ
+**Proposal**: ${proposal.title}
+**Status**: Active
 
-#### 進捗状況
-- **タスク数**: ${tasks.length}
-- **完了タスク**: ${completedTasks}
-- **完了率**: ${taskCompletionRate}%
+#### Progress
+- **Tasks**: ${tasks.length}
+- **Completed**: ${completedTasks}
+- **Completion Rate**: ${taskCompletionRate}%
 
 ${
   mvp
     ? `#### MVP
-- **名称**: ${mvp.title}
-- **作成日**: ${mvp.created_at ? new Date(mvp.created_at).toLocaleDateString('ja-JP') : '不明'}`
+- **Name**: ${mvp.title}
+- **Created**: ${mvp.created_at ? new Date(mvp.created_at).toLocaleDateString('en-US') : 'Unknown'}`
     : ''
 }
 
 ${
   dashboard
-    ? `#### 計測結果
-- **ダッシュボード**: ${dashboard.title}
-- **計測期間**: ${(dashboard.metadata as any)?.measurement_period_days || '不明'}日間`
+    ? `#### Measurement Results
+- **Dashboard**: ${dashboard.title}
+- **Measurement Period**: ${(dashboard.metadata as any)?.measurement_period_days || 'Unknown'} days`
     : ''
 }
 
 ${
   improvement
-    ? `#### 改善提案
-- **内容**: ${improvement.title}
+    ? `#### Improvement Proposal
+- **Content**: ${improvement.title}
 ${decisionInfo}`
     : ''
 }`
@@ -160,10 +160,10 @@ ${decisionInfo}`
       {} as Record<string, number>
     )
 
-    return `- **総プロジェクト数**: ${totalProjects}
-- **アクティブプロジェクト**: ${activeProjects}
-- **総ノード数**: ${totalNodes}
-- **エリア別ノード数**:
+    return `- **Total Projects**: ${totalProjects}
+- **Active Projects**: ${activeProjects}
+- **Total Nodes**: ${totalNodes}
+- **Nodes by Area**:
   - KnowledgeBase: ${nodesByArea.knowledge_base || 0}
   - IdeaStock: ${nodesByArea.idea_stock || 0}
   - Build: ${nodesByArea.build || 0}
@@ -183,13 +183,13 @@ ${decisionInfo}`
         .filter((n) => n && n.type === 'memo')
         .map((n) => n!.title)
 
-      return `- **${tag.title}**: ${connectedMemos.join(', ') || '接続なし'}`
+      return `- **${tag.title}**: ${connectedMemos.join(', ') || 'No connections'}`
     })
 
-    return `### メモ数: ${memos.length}
-### タグ数: ${tags.length}
+    return `### Memos: ${memos.length}
+### Tags: ${tags.length}
 
-### タグ接続
+### Tag Connections
 ${tagConnections.join('\n')}`
   }
 
@@ -212,7 +212,7 @@ ${tagConnections.join('\n')}`
         disabled={isGenerating}
         className="fixed bottom-4 right-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 shadow-lg"
       >
-        {isGenerating ? 'レポート生成中...' : 'レポート生成'}
+        {isGenerating ? 'Generating Report...' : 'Generate Report'}
       </button>
 
       {showReport && (
@@ -227,14 +227,14 @@ ${tagConnections.join('\n')}`
               <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    プロジェクトレポート
+                    Project Report
                   </h2>
                   <div className="flex space-x-2">
                     <button
                       onClick={downloadReport}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
                     >
-                      ダウンロード
+                      Download
                     </button>
                     <button
                       onClick={() => setShowReport(false)}

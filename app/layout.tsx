@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './components/providers/Providers'
 import { SupabaseProvider } from './components/providers/SupabaseProvider'
+import { SimplePageTransition } from './components/providers/SimplePageTransition'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,7 +17,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ja">
       <body className={inter.className}>
         <Providers>
-          <SupabaseProvider>{children}</SupabaseProvider>
+          <SupabaseProvider>
+            <SimplePageTransition>{children}</SimplePageTransition>
+          </SupabaseProvider>
         </Providers>
       </body>
     </html>

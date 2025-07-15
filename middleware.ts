@@ -61,8 +61,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // パブリックパス（認証不要）のリスト
-  const publicPaths = ['/login', '/auth', '/test-login', '/api/auth/create-test-user']
-  const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname.startsWith(path))
+  const publicPaths = ['/', '/login', '/auth', '/test-login', '/api/auth/create-test-user']
+  const isPublicPath = publicPaths.some((path) => 
+    path === '/' ? request.nextUrl.pathname === '/' : request.nextUrl.pathname.startsWith(path)
+  )
 
   // 認証が必要なパスの保護
   if (!user && !isPublicPath) {
