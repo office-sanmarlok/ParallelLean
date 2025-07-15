@@ -21,16 +21,12 @@ export function MeasurementPeriodModal({
   const { nodes, addNode, addEdge } = useGraphStore()
   const supabase = createClient()
 
-  console.log('MeasurementPeriodModal render:', { isOpen, mvpNodeId })
-
   if (!isOpen || !mvpNodeId) {
-    console.log('Modal not shown because:', { isOpen, mvpNodeId })
     return null
   }
 
   const mvpNode = nodes.find((n) => n.id === mvpNodeId)
   if (!mvpNode) {
-    console.log('MVP node not found:', mvpNodeId)
     return null
   }
 

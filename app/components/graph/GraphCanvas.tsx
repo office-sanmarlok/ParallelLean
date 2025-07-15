@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import type Konva from 'konva'
 import { Stage, Layer, Group, Rect } from 'react-konva'
 import { useGraphStore } from '@/app/stores/graphStore'
@@ -22,10 +22,11 @@ import { ReportGenerator } from './ReportGenerator'
 import { FloatingIndicator } from './FloatingIndicator'
 import { MeasurementPeriodModal } from '../modals/MeasurementPeriodModal'
 import type { Node, Edge, AreaType } from '@/src/types/database'
-import { AREA_ORDER, AREA_HEIGHT_RATIO } from '@/app/lib/graph/layout'
+import { AREA_ORDER, AREA_HEIGHT_RATIOS } from '@/app/lib/graph/layout'
 import { createButtonNodes } from '@/app/lib/graph/buttonNodes'
 import { createVirtualNode } from '@/app/lib/graph/createVirtualNodes'
 import { useUnifiedForceSimulation } from '@/app/hooks/useUnifiedForceSimulation'
+import { useNodePositionPersist } from '@/app/hooks/useNodePositionPersist'
 
 export function GraphCanvas() {
   const stageRef = useRef<Konva.Stage>(null)
@@ -60,11 +61,64 @@ export function GraphCanvas() {
     isOpen: boolean
     mvpNodeId: string | null
   }>({ isOpen: false, mvpNodeId: null })
+  const [isSimulationActive, setIsSimulationActive] = useState(true)
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
 
   const supabase = createClient()
 
   // 統合Force Simulationを有効化（全エリア・全ノードタイプ対応）
   useUnifiedForceSimulation()
+  
+  // ノード位置の自動保存を有効化
+  useNodePositionPersist()
+
+  // ビューポートの計算
+  const getViewport = () => {
+    return {
+      x: -position.x / scale,
+      y: -position.y / scale,
+      width: dimensions.width / scale,
+      height: dimensions.height / scale,
+    }
+  }
+
+  // ノードが可視かどうかを判定
+  const isNodeVisible = (node: Node, viewport: ReturnType<typeof getViewport>) => {
+    // positionオブジェクトから座標を取得
+    const pos = node.position as { x: number; y: number } | null
+    const nodeX = pos?.x || 0
+    const nodeY = pos?.y || 0
+    const nodeRadius = 60 // ノードの半径（最大サイズを考慮）
+
+    return (
+      nodeX + nodeRadius >= viewport.x &&
+      nodeX - nodeRadius <= viewport.x + viewport.width &&
+      nodeY + nodeRadius >= viewport.y &&
+      nodeY - nodeRadius <= viewport.y + viewport.height
+    )
+  }
+
+  // エッジが可視かどうかを判定
+  const isEdgeVisible = (edge: Edge, nodes: Node[], viewport: ReturnType<typeof getViewport>) => {
+    const sourceNode = nodes.find((n) => n.id === edge.source_id)
+    const targetNode = nodes.find((n) => n.id === edge.target_id)
+    
+    if (!sourceNode || !targetNode) return false
+    
+    // 両端のノードのいずれかが可視なら、エッジも可視とする
+    return isNodeVisible(sourceNode, viewport) || isNodeVisible(targetNode, viewport)
+  }
+
+  // 可視ノードとエッジのフィルタリング（メモ化）
+  const { visibleNodes, visibleVirtualNodes, visibleEdges } = useMemo(() => {
+    const viewport = getViewport()
+    
+    const visibleNodes = nodes.filter((node) => isNodeVisible(node, viewport))
+    const visibleVirtualNodes = virtualNodes.filter((node) => isNodeVisible(node, viewport))
+    const visibleEdges = edges.filter((edge) => isEdgeVisible(edge, nodes, viewport))
+    
+    return { visibleNodes, visibleVirtualNodes, visibleEdges }
+  }, [nodes, virtualNodes, edges, position, scale, dimensions])
 
   // Memoノードを削除
   const handleDeleteMemo = async () => {
@@ -98,7 +152,7 @@ export function GraphCanvas() {
       // IdeaStockエリアにProposalノードを作成
       const proposalPosition = {
         x: Math.random() * 1000 + 200,
-        y: 3000 * AREA_HEIGHT_RATIO + 200, // IdeaStockエリアの位置
+        y: 3000 * AREA_HEIGHT_RATIOS.knowledge_base + 200, // IdeaStockエリアの位置（KnowledgeBaseの下）
       }
 
       const { data: proposalNode, error } = await supabase
@@ -758,13 +812,55 @@ export function GraphCanvas() {
     }
   }, [])
 
-  // アニメーションループ（Force Simulationの変更を反映）
+  // Force Simulationの状態を監視してアニメーションを制御
   useEffect(() => {
+    const checkSimulationState = () => {
+      // d3のシミュレーションインスタンスを取得（グローバルに保存されている場合）
+      const simulation = (window as any).__d3Simulation
+      if (simulation && simulation.alpha() < 0.001) {
+        // シミュレーションが安定したらアニメーションを停止
+        setIsSimulationActive(false)
+      }
+    }
+
+    const interval = setInterval(checkSimulationState, 100)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ノードやエッジの変更を監視してアニメーションを再開
+  useEffect(() => {
+    setIsSimulationActive(true)
+    setLastUpdateTime(Date.now())
+    
+    // 3秒後に自動的にアニメーションを停止（フォールバック）
+    const timeout = setTimeout(() => {
+      setIsSimulationActive(false)
+    }, 3000)
+    
+    return () => clearTimeout(timeout)
+  }, [nodes.length, edges.length, virtualNodes.length, isNodeDragging])
+
+  // ビューポートの変更時も一時的にアニメーションを再開
+  useEffect(() => {
+    setIsSimulationActive(true)
+    const timeout = setTimeout(() => {
+      setIsSimulationActive(false)
+    }, 500)
+    
+    return () => clearTimeout(timeout)
+  }, [position.x, position.y, scale])
+
+  // アニメーションループ（最適化版）
+  useEffect(() => {
+    if (!isSimulationActive) return
+
     const animate = () => {
       if (layerRef.current) {
         layerRef.current.batchDraw()
       }
-      animationFrameRef.current = requestAnimationFrame(animate)
+      if (isSimulationActive) {
+        animationFrameRef.current = requestAnimationFrame(animate)
+      }
     }
 
     animate()
@@ -774,7 +870,7 @@ export function GraphCanvas() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [])
+  }, [isSimulationActive])
 
   // ズーム機能
   // ProposalからBuildへの進行処理
@@ -1156,9 +1252,18 @@ export function GraphCanvas() {
 
     // クリック位置からエリアを判定
     const relativeY = (pointer.y - position.y) / scale
-    const areaHeight = 3000 * AREA_HEIGHT_RATIO
-    const areaIndex = Math.floor(relativeY / areaHeight)
-    const area = AREA_ORDER[Math.max(0, Math.min(areaIndex, AREA_ORDER.length - 1))]
+    let area: AreaType = 'knowledge_base'
+    let cumulativeHeight = 0
+    
+    // 各エリアの高さを累積して、クリック位置がどのエリアか判定
+    for (const areaName of AREA_ORDER) {
+      const areaHeight = 3000 * AREA_HEIGHT_RATIOS[areaName]
+      if (relativeY < cumulativeHeight + areaHeight) {
+        area = areaName
+        break
+      }
+      cumulativeHeight += areaHeight
+    }
 
     // KnowledgeBaseエリアの場合のみ新規作成ボタンを表示
     if (area === 'knowledge_base') {
@@ -1227,7 +1332,7 @@ export function GraphCanvas() {
 
             {/* エッジ */}
             <Group>
-              {edges.map((edge) => (
+              {visibleEdges.map((edge) => (
                 <GraphEdge key={edge.id} edge={edge} nodes={nodes} />
               ))}
             </Group>
@@ -1258,7 +1363,7 @@ export function GraphCanvas() {
 
             {/* ノード */}
             <Group>
-              {nodes.map((node) => (
+              {visibleNodes.map((node) => (
                 <GraphNode
                   key={node.id}
                   node={node}
@@ -1270,7 +1375,7 @@ export function GraphCanvas() {
                 />
               ))}
               {/* ボタンノード */}
-              {virtualNodes.map((node) => (
+              {visibleVirtualNodes.map((node) => (
                 <GraphNode
                   key={node.id}
                   node={node}

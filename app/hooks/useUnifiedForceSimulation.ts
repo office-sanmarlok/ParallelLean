@@ -71,16 +71,38 @@ export function useUnifiedForceSimulation() {
       simulationRef.current.stop()
     }
 
+    // ノード数に応じてパラメータを調整（パフォーマンス最適化）
+    const nodeCount = simulationNodes.length
+    const collisionStrength = nodeCount > 100 ? 0.6 : 0.8
+    const alphaDecayRate = nodeCount > 100 ? 0.05 : 0.03
+    
     // 新しいシミュレーションを作成
     const simulation = d3
       .forceSimulation<SimulationNode>(simulationNodes)
+      // IdeaStockエリアのノード間に反発力を追加
+      .force('charge', d3.forceManyBody()
+        .strength((d: SimulationNode) => {
+          // IdeaStockエリアのProposal/Researchは強い反発力
+          if (d.area === 'idea_stock' && (d.type === 'proposal' || d.type === 'research')) {
+            return -500 // 強い反発力でProposal同士を離す
+          }
+          // その他のノードは通常の反発力
+          return -100
+        })
+      )
       // ノード間の衝突回避（全ノード共通）
       .force(
         'collision',
         d3
           .forceCollide<SimulationNode>()
-          .radius((d) => getNodeSize(d) / 2 + 10)
-          .strength(0.8)
+          .radius((d) => {
+            // IdeaStockエリアのProposal/Researchは衝突半径を大きくする
+            if (d.area === 'idea_stock' && (d.type === 'proposal' || d.type === 'research')) {
+              return getNodeSize(d) / 2 + 30 // より大きな間隔を保つ
+            }
+            return getNodeSize(d) / 2 + 10
+          })
+          .strength(collisionStrength)
       )
       // エッジによるリンク力
       .force(
@@ -96,6 +118,15 @@ export function useUnifiedForceSimulation() {
             if ((d as any).type === 'virtual') {
               return 80
             }
+            
+            // ISTagとProposal/Research間の距離を大きくする（Proposal同士が離れるように）
+            if (
+              (source?.type === 'is_tag' && (target?.type === 'proposal' || target?.type === 'research')) ||
+              ((source?.type === 'proposal' || source?.type === 'research') && target?.type === 'is_tag')
+            ) {
+              return 200 // 十分な距離を保つ
+            }
+            
             // ProposalとTask間は非常に長い距離
             if (
               (source?.type === 'proposal' && target?.type === 'task') ||
@@ -108,6 +139,11 @@ export function useUnifiedForceSimulation() {
             if (source?.area !== target?.area) {
               return 300
             }
+            // Task間の依存関係は短めの距離
+            if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
+              return 80  // 100 → 80 に短縮
+            }
+            
             // 同じエリア内の場合
             return 100
           })
@@ -128,6 +164,14 @@ export function useUnifiedForceSimulation() {
               return 0.05
             }
 
+            // ISTagとProposal/Research間のリンクは非常に弱くする（Proposal同士が離れるように）
+            if (
+              (source?.type === 'is_tag' && (target?.type === 'proposal' || target?.type === 'research')) ||
+              ((source?.type === 'proposal' || source?.type === 'research') && target?.type === 'is_tag')
+            ) {
+              return 0.05 // 0.3 → 0.05 に弱める
+            }
+
             // エリアをまたぐリンクは弱い結合
             if (source?.area !== target?.area) {
               return 0.1
@@ -136,6 +180,11 @@ export function useUnifiedForceSimulation() {
             // flow タイプのエッジは強い結合
             if ((d as any).type === 'flow') {
               return 0.8
+            }
+            
+            // Task間の依存関係は強い結合
+            if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
+              return 0.7  // 0.3 → 0.7 に強化
             }
 
             // その他のエッジは弱い結合
@@ -154,9 +203,16 @@ export function useUnifiedForceSimulation() {
             // 何も力を適用しない
           }
 
-          // IdeaStockエリアのノード：自由配置（力なし）
+          // IdeaStockエリアのノード
           else if (node.area === 'idea_stock') {
-            // 何も力を適用しない
+            // Proposalノードは中央に引き寄せる（Y軸のみ）
+            if (node.type === 'proposal') {
+              const centerY = (areaBounds.minY + areaBounds.maxY) / 2
+              const yDiff = centerY - (node.y || 0)
+              // Y軸方向にのみ中央に引き寄せる力を適用
+              node.vy = (node.vy || 0) + yDiff * 0.05 // 弱い力で中央に
+            }
+            // Research、ISTagは自由配置
           }
 
           // BuildエリアのTaskノード：下方向への重力
@@ -176,14 +232,14 @@ export function useUnifiedForceSimulation() {
             }
           }
 
-          // エリア境界内に制限（パディングに合わせて調整）
-          node.x = Math.max(areaBounds.minX + 100, Math.min(node.x, areaBounds.maxX - 100))
-          node.y = Math.max(areaBounds.minY + 100, Math.min(node.y, areaBounds.maxY - 100))
+          // エリア境界内に制限（パディングを小さく）
+          node.x = Math.max(areaBounds.minX + 30, Math.min(node.x, areaBounds.maxX - 30))
+          node.y = Math.max(areaBounds.minY + 30, Math.min(node.y, areaBounds.maxY - 30))
         })
       })
-      // 速度減衰
-      .velocityDecay(0.6)
-      .alphaDecay(0.02)
+      // 速度減衰（早く安定するように調整）
+      .velocityDecay(0.7)
+      .alphaDecay(alphaDecayRate)
       .alphaMin(0.001)
 
     // シミュレーションのティックごとに位置を更新
@@ -196,7 +252,7 @@ export function useUnifiedForceSimulation() {
               ? (node.position as any)
               : { x: 0, y: 0 }
 
-          if (Math.abs(currentPos.x - node.x) > 1 || Math.abs(currentPos.y - node.y) > 1) {
+          if (Math.abs(currentPos.x - node.x) > 3 || Math.abs(currentPos.y - node.y) > 3) {
             // バーチャルノードかどうかで更新方法を分ける
             if (node.id.startsWith('virtual-')) {
               updateVirtualNode(node.id, {
@@ -213,6 +269,9 @@ export function useUnifiedForceSimulation() {
     })
 
     simulationRef.current = simulation
+    
+    // グローバルにシミュレーションを保存（アニメーション制御のため）
+    ;(window as any).__d3Simulation = simulation
 
     // ドラッグ中はノードを固定
     const handleNodeDrag = (nodeId: string, x: number, y: number) => {
@@ -244,6 +303,7 @@ export function useUnifiedForceSimulation() {
       }
       delete (window as any).__unifiedSimulationHandleDrag
       delete (window as any).__unifiedSimulationHandleDragEnd
+      delete (window as any).__d3Simulation
     }
   }, [nodes.length, edges.length, virtualNodes.length]) // ノード・エッジ・バーチャルノードの数が変わったときのみ再計算
 

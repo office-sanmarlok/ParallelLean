@@ -1,6 +1,6 @@
 import type { Node } from '@/src/types/database'
 import type { ExtendedNode } from '@/src/types/graph'
-import { AREA_HEIGHT_RATIO } from './layout'
+import { AREA_HEIGHT_RATIOS, AREA_ORDER } from './layout'
 
 // ノード間の垂直間隔
 const VERTICAL_SPACING = 100
@@ -41,14 +41,22 @@ export function calculateNodePosition(
  * vertical_orderからY座標を計算
  */
 export function calculateYFromOrder(verticalOrder: number, areaIndex: number): number {
-  const baseY = areaIndex * 2000 * AREA_HEIGHT_RATIO + AREA_OFFSET_Y
-  return baseY + verticalOrder * VERTICAL_SPACING
+  // 各エリアの開始Y座標を計算
+  let baseY = 0
+  for (let i = 0; i < areaIndex; i++) {
+    baseY += 2000 * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
+  }
+  return baseY + AREA_OFFSET_Y + verticalOrder * VERTICAL_SPACING
 }
 
 /**
  * Y座標からvertical_orderを計算
  */
 export function calculateOrderFromY(y: number, areaIndex: number): number {
-  const baseY = areaIndex * 2000 * AREA_HEIGHT_RATIO + AREA_OFFSET_Y
-  return Math.round((y - baseY) / VERTICAL_SPACING)
+  // 各エリアの開始Y座標を計算
+  let baseY = 0
+  for (let i = 0; i < areaIndex; i++) {
+    baseY += 2000 * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
+  }
+  return Math.round((y - baseY - AREA_OFFSET_Y) / VERTICAL_SPACING)
 }
