@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { Circle, Rect, Text, Group, Line } from 'react-konva'
 import type { Node } from '@/src/types/database'
 import type { ExtendedNode } from '@/src/types/graph'
@@ -21,7 +21,7 @@ interface GraphNodeProps {
   onDragEnd?: () => void
 }
 
-export function GraphNode({
+function GraphNodeComponent({
   node,
   onClick,
   onDblClick,
@@ -511,3 +511,19 @@ export function GraphNode({
     </Group>
   )
 }
+
+// メモ化された GraphNode コンポーネント
+export const GraphNode = memo(GraphNodeComponent, (prevProps, nextProps) => {
+  // ノードの位置、選択状態、タイトルが変更されていない場合は再レンダリングしない
+  const prevPos = calculateNodePosition(prevProps.node, undefined, AREA_ORDER.indexOf(prevProps.node.area))
+  const nextPos = calculateNodePosition(nextProps.node, undefined, AREA_ORDER.indexOf(nextProps.node.area))
+  
+  return (
+    prevPos.x === nextPos.x &&
+    prevPos.y === nextPos.y &&
+    prevProps.selected === nextProps.selected &&
+    prevProps.node.title === nextProps.node.title &&
+    prevProps.node.type === nextProps.node.type &&
+    (prevProps.node as any).task_status === (nextProps.node as any).task_status
+  )
+})

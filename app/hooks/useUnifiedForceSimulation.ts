@@ -71,6 +71,11 @@ export function useUnifiedForceSimulation() {
       simulationRef.current.stop()
     }
 
+    // ノード数に応じてパラメータを調整（パフォーマンス最適化）
+    const nodeCount = simulationNodes.length
+    const collisionStrength = nodeCount > 100 ? 0.6 : 0.8
+    const alphaDecayRate = nodeCount > 100 ? 0.05 : 0.03
+    
     // 新しいシミュレーションを作成
     const simulation = d3
       .forceSimulation<SimulationNode>(simulationNodes)
@@ -80,7 +85,7 @@ export function useUnifiedForceSimulation() {
         d3
           .forceCollide<SimulationNode>()
           .radius((d) => getNodeSize(d) / 2 + 10)
-          .strength(0.8)
+          .strength(collisionStrength)
       )
       // エッジによるリンク力
       .force(
@@ -181,9 +186,9 @@ export function useUnifiedForceSimulation() {
           node.y = Math.max(areaBounds.minY + 100, Math.min(node.y, areaBounds.maxY - 100))
         })
       })
-      // 速度減衰
-      .velocityDecay(0.6)
-      .alphaDecay(0.02)
+      // 速度減衰（早く安定するように調整）
+      .velocityDecay(0.7)
+      .alphaDecay(alphaDecayRate)
       .alphaMin(0.001)
 
     // シミュレーションのティックごとに位置を更新
@@ -196,7 +201,7 @@ export function useUnifiedForceSimulation() {
               ? (node.position as any)
               : { x: 0, y: 0 }
 
-          if (Math.abs(currentPos.x - node.x) > 1 || Math.abs(currentPos.y - node.y) > 1) {
+          if (Math.abs(currentPos.x - node.x) > 3 || Math.abs(currentPos.y - node.y) > 3) {
             // バーチャルノードかどうかで更新方法を分ける
             if (node.id.startsWith('virtual-')) {
               updateVirtualNode(node.id, {
@@ -213,6 +218,9 @@ export function useUnifiedForceSimulation() {
     })
 
     simulationRef.current = simulation
+    
+    // グローバルにシミュレーションを保存（アニメーション制御のため）
+    ;(window as any).__d3Simulation = simulation
 
     // ドラッグ中はノードを固定
     const handleNodeDrag = (nodeId: string, x: number, y: number) => {
@@ -244,6 +252,7 @@ export function useUnifiedForceSimulation() {
       }
       delete (window as any).__unifiedSimulationHandleDrag
       delete (window as any).__unifiedSimulationHandleDragEnd
+      delete (window as any).__d3Simulation
     }
   }, [nodes.length, edges.length, virtualNodes.length]) // ノード・エッジ・バーチャルノードの数が変わったときのみ再計算
 
