@@ -30,12 +30,12 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     if (node) {
       setTitle(node.title)
       setContent(node.content || '')
-      // タグを取得
+      // Get tags
       loadTags()
     }
   }, [node])
 
-  // 現在のタグを読み込む
+  // Load current tags
   const loadTags = async () => {
     if (!node) return
 
@@ -47,7 +47,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     setTags(tagNodes.map((n) => n.title))
   }
 
-  // タイトルの保存
+  // Save title
   const saveTitle = async () => {
     if (!node || title === node.title) return
 
@@ -62,13 +62,13 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     setIsEditingTitle(false)
   }
 
-  // タグを追加
+  // Add tag
   const addTag = async () => {
     if (!node || !newTag.trim()) return
 
     const tagType = node.area === 'knowledge_base' ? 'kb_tag' : 'is_tag'
 
-    // 既存のタグを確認
+    // Check existing tag
     const existingTag = nodes.find(
       (n) => n.type === tagType && n.area === node.area && n.title === newTag.trim()
     )
@@ -76,10 +76,10 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     let tagNode
 
     if (existingTag) {
-      // 既存のタグを使用
+      // Use existing tag
       tagNode = existingTag
     } else {
-      // 新しいタグノードを作成
+      // Create new tag node
       const { data: newTagNode } = await supabase
         .from('nodes')
         .insert({
@@ -103,17 +103,17 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
       if (!newTagNode) return
       tagNode = newTagNode
 
-      // ストアに追加
+      // Add to store
       addNode(tagNode)
     }
 
-    // エッジが既に存在するか確認
+    // Check if edge already exists
     const existingEdge = edges.find(
       (e) => e.source_id === node.id && e.target_id === tagNode.id && e.type === 'tag'
     )
 
     if (!existingEdge) {
-      // エッジを作成
+      // Create edge
       const { data: newEdge } = await supabase
         .from('edges')
         .insert({
@@ -127,7 +127,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
         .single()
 
       if (newEdge) {
-        // ストアに追加
+        // Add to store
         addEdge(newEdge)
       }
     }
@@ -136,7 +136,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     setNewTag('')
   }
 
-  // タグを削除
+  // Remove tag
   const removeTag = async (tagToRemove: string) => {
     if (!node) return
 
@@ -144,7 +144,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     const tagNode = nodes.find((n) => n.type === tagType && n.title === tagToRemove)
 
     if (tagNode) {
-      // エッジを削除
+      // Delete edge
       const edge = edges.find(
         (e) => e.source_id === node.id && e.target_id === tagNode.id && e.type === 'tag'
       )
@@ -152,7 +152,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
       if (edge) {
         await supabase.from('edges').delete().eq('id', edge.id)
 
-        // ストアから削除
+        // Remove from store
         removeEdge(edge.id)
 
         setTags(tags.filter((t) => t !== tagToRemove))
@@ -160,7 +160,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     }
   }
 
-  // 自動保存（1秒後）
+  // Auto-save (after 1 second)
   useEffect(() => {
     if (!node) return
 
@@ -168,14 +168,14 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
       if (content !== node.content) {
         setIsSaving(true)
 
-        // ノードの内容を更新
+        // Update node content
         const { error } = await supabase.from('nodes').update({ content }).eq('id', node.id)
 
         if (!error) {
           updateNode(node.id, { content })
           setLastSaved(new Date())
 
-          // 自動タグ生成は無効化（手動管理のみ）
+          // Auto tag generation is disabled (manual management only)
         }
 
         setIsSaving(false)
@@ -191,7 +191,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: '#ffffff' }}>
-      {/* ヘッダー */}
+      {/* Header */}
       <div
         style={{
           padding: '16px',
@@ -250,17 +250,17 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
               }}
             >
               {node.type === 'memo'
-                ? 'メモ'
+                ? 'Memo'
                 : node.type === 'proposal'
-                  ? '提案'
+                  ? 'Proposal'
                   : node.type === 'research'
-                    ? 'リサーチ'
+                    ? 'Research'
                     : node.type === 'task'
-                      ? 'タスク'
+                      ? 'Task'
                       : node.type === 'mvp'
                         ? 'MVP'
                         : node.type === 'improvement'
-                          ? '改善'
+                          ? 'Improvement'
                           : node.type}{' '}
               • {node.area}
             </p>
@@ -295,7 +295,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
           </button>
         </div>
 
-        {/* タグセクション */}
+        {/* Tag section */}
         <div style={{ marginTop: '16px' }}>
           <div
             style={{
@@ -305,7 +305,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
               marginBottom: '8px',
             }}
           >
-            <span style={{ fontSize: '14px', color: '#6b7280' }}>タグ:</span>
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>Tags:</span>
             {tags.map((tag, index) => (
               <div
                 key={index}
@@ -345,7 +345,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') addTag()
               }}
-              placeholder="新しいタグを追加..."
+              placeholder="Add new tag..."
               style={{
                 flex: 1,
                 padding: '6px 12px',
@@ -369,12 +369,12 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#3b82f6')}
             >
-              追加
+              Add
             </button>
           </div>
         </div>
 
-        {/* 保存状態 */}
+        {/* Save status */}
         <div
           style={{
             marginTop: '12px',
@@ -385,12 +385,12 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
             gap: '8px',
           }}
         >
-          {isSaving && <span>保存中...</span>}
-          {lastSaved && !isSaving && <span>最終保存: {lastSaved.toLocaleTimeString('ja-JP')}</span>}
+          {isSaving && <span>Saving...</span>}
+          {lastSaved && !isSaving && <span>Last saved: {lastSaved.toLocaleTimeString('en-US')}</span>}
         </div>
       </div>
 
-      {/* エディタ */}
+      {/* Editor */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <CodeMirror
           value={content}
