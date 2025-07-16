@@ -1120,21 +1120,48 @@ export function GraphCanvas() {
             return
           }
 
-          // エッジを作成（依存関係）
-          const { data: edge, error } = await supabase
-            .from('edges')
-            .insert({
-              source_id: linkingSource.id,
-              target_id: node.id,
-              type: 'dependency',
-            })
-            .select()
-            .single()
-
-          if (error) throw error
-
+          // 楽観的更新：即座にエッジをUIに追加
+          const tempEdgeId = `temp-edge-${Date.now()}`
+          const now = new Date().toISOString()
+          const tempEdge: Edge = {
+            id: tempEdgeId,
+            source_id: linkingSource.id,
+            target_id: node.id,
+            type: 'dependency',
+            is_branch: false,
+            is_merge: false,
+            created_at: now,
+            branch_from: null,
+            merge_to: null,
+          }
+          
           // ストアに追加
-          addEdge(edge)
+          addEdge(tempEdge)
+
+          // バックグラウンドでDB作成
+          ;(async () => {
+            try {
+              const { data: edge, error } = await supabase
+                .from('edges')
+                .insert({
+                  source_id: linkingSource.id,
+                  target_id: node.id,
+                  type: 'dependency',
+                })
+                .select()
+                .single()
+
+              if (error) throw error
+
+              // 一時的なエッジを実際のエッジに置き換え
+              removeEdge(tempEdgeId)
+              addEdge(edge)
+            } catch (error) {
+              console.error('Failed to create dependency in database:', error)
+              // エラー時は一時的なエッジを削除
+              removeEdge(tempEdgeId)
+            }
+          })()
 
           // リンク作成モードを終了
           useGraphStore.getState().setLinkingMode(false)
