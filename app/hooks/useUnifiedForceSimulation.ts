@@ -232,15 +232,12 @@ export function useUnifiedForceSimulation() {
             }
           }
 
-          // Measure/LearnエリアのMVPノード：中央に引き寄せる
+          // Measure/LearnエリアのMVPノード：Y軸の中央に引き寄せる
           else if ((node.area === 'measure' || node.area === 'learn') && node.type === 'mvp') {
-            const centerX = (areaBounds.minX + areaBounds.maxX) / 2
             const centerY = (areaBounds.minY + areaBounds.maxY) / 2
-            const xDiff = centerX - (node.x || 0)
             const yDiff = centerY - (node.y || 0)
-            // X軸とY軸両方向に中央に引き寄せる力を適用
-            node.vx = (node.vx || 0) + xDiff * 0.05
-            node.vy = (node.vy || 0) + yDiff * 0.05
+            // Y軸方向にのみ中央に引き寄せる力を適用
+            node.vy = (node.vy || 0) + yDiff * 0.05 // 弱い力で中央に
           }
 
           // エリア境界内に制限（パディングを小さく）

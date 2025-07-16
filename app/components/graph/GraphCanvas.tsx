@@ -584,9 +584,9 @@ export function GraphCanvas() {
     const tempEdgeId = `temp-edge-${Date.now()}`
     const now = new Date().toISOString()
 
-    // MVPノードの位置をエリアの中央に設定
+    // MVPノードの位置をY軸の中央に設定（X軸はタスクの位置を基準）
     const mvpPosition = {
-      x: (measureBounds.minX + measureBounds.maxX) / 2,
+      x: taskPos.x,
       y: (measureBounds.minY + measureBounds.maxY) / 2,
     }
 
