@@ -44,6 +44,7 @@ export function GraphCanvas() {
     addNode,
     addEdge,
     updateNode,
+    removeEdge,
   } = useGraphStore()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [scale, setScale] = useState(1)
@@ -237,20 +238,21 @@ export function GraphCanvas() {
     const tagNode = nodes.find((n) => n.id === tagId && n.type === 'kb_tag')
     if (!tagNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', tagId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(tagId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(tagId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete tag:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', tagId)
+      } catch (error) {
+        console.error('Failed to delete tag from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Proposalノードを削除
@@ -258,20 +260,21 @@ export function GraphCanvas() {
     const proposalNode = nodes.find((n) => n.id === proposalId && n.type === 'proposal')
     if (!proposalNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', proposalId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(proposalId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(proposalId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete proposal:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', proposalId)
+      } catch (error) {
+        console.error('Failed to delete proposal from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Researchノードを作成
@@ -352,20 +355,21 @@ export function GraphCanvas() {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', taskId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(taskId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(taskId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete task:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', taskId)
+      } catch (error) {
+        console.error('Failed to delete task from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // 新しいTaskノードを追加
@@ -373,68 +377,130 @@ export function GraphCanvas() {
     const parentTask = nodes.find((n) => n.id === parentTaskId && n.type === 'task')
     if (!parentTask) return
 
-    try {
-      const parentPos =
-        typeof parentTask.position === 'object' && parentTask.position !== null
-          ? (parentTask.position as any)
-          : { x: 0, y: 0 }
+    const parentPos =
+      typeof parentTask.position === 'object' && parentTask.position !== null
+        ? (parentTask.position as any)
+        : { x: 0, y: 0 }
 
-      // 親タスクから出ているエッジの数を数える（複数の子タスクに対応）
-      const childEdges = edges.filter((e) => e.source_id === parentTaskId)
-      const childCount = childEdges.length
+    // 親タスクから出ているエッジの数を数える（複数の子タスクに対応）
+    const childEdges = edges.filter((e) => e.source_id === parentTaskId)
+    const childCount = childEdges.length
 
-      // 新しいタスクの位置を計算（左右に広がる）
-      const spacing = 150
-      const offsetX =
-        childCount % 2 === 0 ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
+    // 新しいタスクの位置を計算（左右に広がる）
+    const spacing = 150
+    const offsetX =
+      childCount % 2 === 0 ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
 
-      // 新しいタスクを作成
-      const { data: newTask, error } = await supabase
-        .from('nodes')
-        .insert({
-          type: 'task',
-          area: 'build',
-          title: '新しいタスク',
-          content: '',
-          position: {
-            x: parentPos.x + offsetX,
-            y: parentPos.y + 150,
-          },
-          task_status: 'pending',
-          metadata: {
-            proposalId: (parentTask.metadata as any)?.proposalId,
-          },
-        })
-        .select()
-        .single()
+    // 一時的なIDとタイムスタンプを生成
+    const tempId = `temp-task-${Date.now()}`
+    const now = new Date().toISOString()
 
-      if (error) throw error
-
-      // エッジを作成（親タスクから新タスクへ）
-      const { data: edge } = await supabase
-        .from('edges')
-        .insert({
-          source_id: parentTaskId,
-          target_id: newTask.id,
-          type: 'flow',
-        })
-        .select()
-        .single()
-
-      // ストアに追加
-      addNode(newTask)
-      if (edge) addEdge(edge)
-
-      // 新しいタスクを選択
-      setSelectedNode(newTask)
-      setEditorNode(newTask)
-
-      // ボタンノードを更新
-      const buttons = createButtonNodes(newTask, nodes)
-      setVirtualNodes(buttons)
-    } catch (error) {
-      console.error('Failed to add task:', error)
+    // 楽観的更新：即座に新しいタスクをUIに追加
+    const tempTask: Node = {
+      id: tempId,
+      type: 'task',
+      area: 'build',
+      title: '新しいタスク',
+      content: '',
+      position: {
+        x: parentPos.x + offsetX,
+        y: parentPos.y + 150,
+      },
+      task_status: 'pending',
+      metadata: {
+        proposalId: (parentTask.metadata as any)?.proposalId,
+      },
+      created_at: now,
+      updated_at: now,
+      size: null,
+      branch_id: null,
+      color: null,
+      inherited_kb_tags: null,
+      project_line_id: null,
+      vertical_order: null,
     }
+
+    const tempEdge: Edge = {
+      id: `temp-edge-${Date.now()}`,
+      source_id: parentTaskId,
+      target_id: tempId,
+      type: 'flow',
+      is_branch: false,
+      is_merge: false,
+      created_at: now,
+      branch_from: null,
+      merge_to: null,
+    }
+
+    // ストアに追加
+    addNode(tempTask)
+    addEdge(tempEdge)
+
+    // 新しいタスクを選択
+    setSelectedNode(tempTask)
+    setEditorNode(tempTask)
+
+    // ボタンノードを更新
+    const buttons = createButtonNodes(tempTask, [...nodes, tempTask])
+    setVirtualNodes(buttons)
+
+    // バックグラウンドでDB作成
+    ;(async () => {
+      try {
+        // 新しいタスクを作成
+        const { data: newTask, error } = await supabase
+          .from('nodes')
+          .insert({
+            type: 'task',
+            area: 'build',
+            title: '新しいタスク',
+            content: '',
+            position: {
+              x: parentPos.x + offsetX,
+              y: parentPos.y + 150,
+            },
+            task_status: 'pending',
+            metadata: {
+              proposalId: (parentTask.metadata as any)?.proposalId,
+            },
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // エッジを作成（親タスクから新タスクへ）
+        const { data: edge } = await supabase
+          .from('edges')
+          .insert({
+            source_id: parentTaskId,
+            target_id: newTask.id,
+            type: 'flow',
+          })
+          .select()
+          .single()
+
+        // 一時的なIDを実際のIDに置き換え
+        deleteNode(tempId)
+        removeEdge(tempEdge.id)
+        addNode(newTask)
+        if (edge) addEdge(edge)
+
+        // 選択中のノードも更新
+        if (selectedNode?.id === tempId) {
+          setSelectedNode(newTask)
+          setEditorNode(newTask)
+        }
+      } catch (error) {
+        console.error('Failed to add task to database:', error)
+        // エラー時は一時的なノードを削除
+        deleteNode(tempId)
+        removeEdge(tempEdge.id)
+        setSelectedNode(null)
+        setEditorNode(null)
+        setVirtualNodes([])
+      }
+    })()
   }
 
   // Taskノードの状態を変更
@@ -689,20 +755,21 @@ export function GraphCanvas() {
     const researchNode = nodes.find((n) => n.id === researchId && n.type === 'research')
     if (!researchNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', researchId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(researchId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(researchId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete research:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', researchId)
+      } catch (error) {
+        console.error('Failed to delete research from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // ISTagノードを削除
@@ -710,20 +777,21 @@ export function GraphCanvas() {
     const isTagNode = nodes.find((n) => n.id === isTagId && n.type === 'is_tag')
     if (!isTagNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', isTagId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(isTagId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(isTagId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete IS tag:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', isTagId)
+      } catch (error) {
+        console.error('Failed to delete IS tag from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Improvementノードを削除
@@ -731,20 +799,21 @@ export function GraphCanvas() {
     const improvementNode = nodes.find((n) => n.id === improvementId && n.type === 'improvement')
     if (!improvementNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', improvementId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(improvementId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(improvementId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete improvement:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', improvementId)
+      } catch (error) {
+        console.error('Failed to delete improvement from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // 全Taskノードが完了しているかチェック
