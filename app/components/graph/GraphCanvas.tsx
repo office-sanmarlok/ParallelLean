@@ -346,8 +346,6 @@ export function GraphCanvas() {
     setVirtualNodes([])
     setShowTagButton(null)
 
-    // ユーザーに指示を表示
-    console.log('リンク作成モード: Memoノードをクリックして接続してください')
   }
 
   // Taskノードを削除
@@ -566,8 +564,6 @@ export function GraphCanvas() {
     setVirtualNodes([])
     setShowTagButton(null)
 
-    // ユーザーに指示を表示
-    console.log('タスクリンクモード: 他のTaskノードをクリックして依存関係を作成してください')
   }
 
   // MVPノードを作成
@@ -1094,7 +1090,6 @@ export function GraphCanvas() {
           useGraphStore.getState().setLinkingMode(false)
           useGraphStore.getState().setLinkingSource(null)
 
-          console.log(`リンクを作成しました: ${linkingSource.title} → ${node.title}`)
         } catch (error) {
           console.error('Failed to create link:', error)
         }
@@ -1113,7 +1108,6 @@ export function GraphCanvas() {
           )
 
           if (existingEdge) {
-            console.log('既にリンクが存在します')
             // リンク作成モードを終了
             useGraphStore.getState().setLinkingMode(false)
             useGraphStore.getState().setLinkingSource(null)
