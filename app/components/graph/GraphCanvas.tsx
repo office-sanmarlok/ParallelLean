@@ -571,67 +571,130 @@ export function GraphCanvas() {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
-    try {
-      const taskPos =
-        typeof taskNode.position === 'object' && taskNode.position !== null
-          ? (taskNode.position as any)
-          : { x: 0, y: 0 }
+    const taskPos =
+      typeof taskNode.position === 'object' && taskNode.position !== null
+        ? (taskNode.position as any)
+        : { x: 0, y: 0 }
 
-      // Measureエリアの境界を取得
-      const measureBounds = getAreaBounds('measure')
+    // Measureエリアの境界を取得
+    const measureBounds = getAreaBounds('measure')
 
-      // MVPノードを作成
-      const { data: mvpNode, error } = await supabase
-        .from('nodes')
-        .insert({
-          type: 'mvp',
-          area: 'measure',
-          title: `${taskNode.title} - MVP`,
-          content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
-          position: {
-            x: taskPos.x,
-            y: measureBounds.minY + 200,
-          },
-          metadata: {
-            sourceTaskId: taskId,
-          },
-        })
-        .select()
-        .single()
+    // 一時的なIDとタイムスタンプを生成
+    const tempMvpId = `temp-mvp-${Date.now()}`
+    const tempEdgeId = `temp-edge-${Date.now()}`
+    const now = new Date().toISOString()
 
-      if (error) throw error
-
-      // エッジを作成（TaskからMVPへ）
-      const { data: edge } = await supabase
-        .from('edges')
-        .insert({
-          source_id: taskId,
-          target_id: mvpNode.id,
-          type: 'flow',
-        })
-        .select()
-        .single()
-
-      // ストアに追加
-      addNode(mvpNode)
-      if (edge) addEdge(edge)
-
-      // MVPノードを選択してエディタを開く
-      setSelectedNode(mvpNode)
-      setEditorNode(mvpNode)
-
-      // ボタンノードをクリア
-      setVirtualNodes([])
-      setShowTagButton(null)
-
-      // 全Taskが完了しているかチェック
-      setTimeout(() => {
-        console.log('Checking all tasks completed after MVP creation')
-        checkAllTasksCompleted()
-      }, 500) // ストア更新を待つ
-    } catch (error) {
-      console.error('Failed to create MVP:', error)
+    // 楽観的更新：即座にMVPノードをUIに追加
+    const tempMvpNode: Node = {
+      id: tempMvpId,
+      type: 'mvp',
+      area: 'measure',
+      title: `${taskNode.title} - MVP`,
+      content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
+      position: {
+        x: taskPos.x,
+        y: measureBounds.minY + 200,
+      },
+      metadata: {
+        sourceTaskId: taskId,
+      },
+      created_at: now,
+      updated_at: now,
+      size: null,
+      branch_id: null,
+      color: null,
+      inherited_kb_tags: null,
+      project_line_id: null,
+      vertical_order: null,
+      task_status: null,
     }
+
+    const tempEdge: Edge = {
+      id: tempEdgeId,
+      source_id: taskId,
+      target_id: tempMvpId,
+      type: 'flow',
+      is_branch: false,
+      is_merge: false,
+      created_at: now,
+      branch_from: null,
+      merge_to: null,
+    }
+
+    // ストアに追加
+    addNode(tempMvpNode)
+    addEdge(tempEdge)
+
+    // MVPノードを選択してエディタを開く
+    setSelectedNode(tempMvpNode)
+    setEditorNode(tempMvpNode)
+
+    // ボタンノードをクリア
+    setVirtualNodes([])
+    setShowTagButton(null)
+
+    // バックグラウンドでDB作成
+    ;(async () => {
+      try {
+        // MVPノードを作成
+        const { data: mvpNode, error } = await supabase
+          .from('nodes')
+          .insert({
+            type: 'mvp',
+            area: 'measure',
+            title: `${taskNode.title} - MVP`,
+            content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
+            position: {
+              x: taskPos.x,
+              y: measureBounds.minY + 200,
+            },
+            metadata: {
+              sourceTaskId: taskId,
+            },
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // エッジを作成（TaskからMVPへ）
+        const { data: edge } = await supabase
+          .from('edges')
+          .insert({
+            source_id: taskId,
+            target_id: mvpNode.id,
+            type: 'flow',
+          })
+          .select()
+          .single()
+
+        // 一時的なIDを実際のIDに置き換え
+        deleteNode(tempMvpId)
+        removeEdge(tempEdgeId)
+        addNode(mvpNode)
+        if (edge) addEdge(edge)
+
+        // 選択中のノードも更新
+        if (selectedNode?.id === tempMvpId) {
+          setSelectedNode(mvpNode)
+          setEditorNode(mvpNode)
+        }
+
+        // 全Taskが完了しているかチェック
+        setTimeout(() => {
+          console.log('Checking all tasks completed after MVP creation')
+          checkAllTasksCompleted()
+        }, 500) // ストア更新を待つ
+      } catch (error) {
+        console.error('Failed to create MVP in database:', error)
+        // エラー時は一時的なノードを削除
+        deleteNode(tempMvpId)
+        removeEdge(tempEdgeId)
+        setSelectedNode(null)
+        setEditorNode(null)
+        setVirtualNodes([])
+      }
+    })()
   }
 
   // 計測期間を強制終了してLearnエリアに移行
