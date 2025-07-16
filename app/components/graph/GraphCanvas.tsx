@@ -517,26 +517,32 @@ export function GraphCanvas() {
       return
     }
 
-    // 状態選択ノードを作成
+    // 状態変更ボタンの位置を基準にする
     const taskPos = typeof taskNode.position === 'object' && taskNode.position !== null
       ? (taskNode.position as any)
       : { x: 0, y: 0 }
+    
+    // 状態変更ボタンの位置（元のボタンと同じ位置）
+    const statusButtonPos = {
+      x: taskPos.x + 80,
+      y: taskPos.y + 60
+    }
 
     const statusOptions = [
-      { status: 'pending', label: '保留', color: '#F59E0B' },
-      { status: 'incomplete', label: '未了', color: '#EF4444' },
-      { status: 'completed', label: '完了', color: '#10B981' }
+      { status: 'pending', label: '◔', color: '#F59E0B' },     // 保留（黄）
+      { status: 'incomplete', label: '○', color: '#EF4444' },  // 未了（赤）
+      { status: 'completed', label: '●', color: '#10B981' }    // 完了（緑）
     ]
 
     const statusSelectionNodes = statusOptions.map((option, index) => {
-      const angle = (index - 1) * 45 // -45°, 0°, 45°
-      const distance = 80
-      const x = taskPos.x + distance * Math.cos((angle - 90) * Math.PI / 180)
-      const y = taskPos.y + distance * Math.sin((angle - 90) * Math.PI / 180)
+      const angle = (index - 1) * 45 - 90 // -135°, -90°, -45°（上方向に展開）
+      const distance = 40 // ボタンからの距離
+      const x = statusButtonPos.x + distance * Math.cos(angle * Math.PI / 180)
+      const y = statusButtonPos.y + distance * Math.sin(angle * Math.PI / 180)
 
       return createVirtualNode({
         id: `virtual-status-option-${taskId}-${option.status}`,
-        type: 'status-option',
+        type: 'status_button', // ボタンノードと同じタイプに
         area: taskNode.area,
         title: option.label,
         position: { x, y },

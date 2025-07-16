@@ -116,14 +116,6 @@ function GraphNodeComponent({
           stroke: '#000000',
           strokeWidth: 2,
         }
-      case 'status-option':
-        // metadataからcolorを取得
-        const metadata = node.metadata as any
-        return {
-          fill: metadata?.color || '#cccccc',
-          stroke: '#000000',
-          strokeWidth: 2,
-        }
       default:
         return {
           fill: '#cccccc',

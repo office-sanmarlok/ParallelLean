@@ -462,6 +462,16 @@ export function getButtonNodeStyle(node: Node | ExtendedNode, isHovered: boolean
         opacity: 0.8,
       }
     case 'status_button':
+      // select-statusタイプの場合はmetadataの色を使用
+      const metadata = (node as any).metadata
+      if (metadata?.buttonType === 'select-status' && metadata?.color) {
+        return {
+          fill: metadata.color,
+          stroke: '#000000',
+          strokeWidth: 2,
+          opacity: isHovered ? 1 : 0.9,
+        }
+      }
       return {
         fill: isHovered ? 'rgba(251, 146, 60, 0.2)' : 'rgba(251, 146, 60, 0.1)',
         stroke: '#FB923C',
