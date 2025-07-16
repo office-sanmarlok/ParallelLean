@@ -584,6 +584,12 @@ export function GraphCanvas() {
     const tempEdgeId = `temp-edge-${Date.now()}`
     const now = new Date().toISOString()
 
+    // MVPノードの位置をエリアの中央に設定
+    const mvpPosition = {
+      x: (measureBounds.minX + measureBounds.maxX) / 2,
+      y: (measureBounds.minY + measureBounds.maxY) / 2,
+    }
+
     // 楽観的更新：即座にMVPノードをUIに追加
     const tempMvpNode: Node = {
       id: tempMvpId,
@@ -591,10 +597,7 @@ export function GraphCanvas() {
       area: 'measure',
       title: `${taskNode.title} - MVP`,
       content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
-      position: {
-        x: taskPos.x,
-        y: measureBounds.minY + 200,
-      },
+      position: mvpPosition,
       metadata: {
         sourceTaskId: taskId,
       },
@@ -644,10 +647,7 @@ export function GraphCanvas() {
             area: 'measure',
             title: `${taskNode.title} - MVP`,
             content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
-            position: {
-              x: taskPos.x,
-              y: measureBounds.minY + 200,
-            },
+            position: mvpPosition,
             metadata: {
               sourceTaskId: taskId,
             },
