@@ -32,6 +32,9 @@ npm run check-all
 
 # テスト実行（現在未設定）
 npm run test
+
+# データベースの型生成（Supabase CLI必要）
+npx supabase gen types typescript --local > src/types/database.generated.ts
 ```
 
 ## アーキテクチャ
@@ -39,11 +42,13 @@ npm run test
 ### 技術スタック
 
 - **フロントエンド**: Next.js 14 (App Router)、TypeScript、React 18
-- **グラフビュー**: D3.js v7（物理演算）、Konva.js（Canvas描画）
-- **状態管理**: Zustand（グローバル）、Valtio（グラフ詳細）
+- **グラフビュー**: D3.js v7（物理演算）、Konva.js v9（Canvas描画）
+- **状態管理**: Zustand v5（グローバル）、Valtio v2（グラフ詳細）
 - **バックエンド**: Supabase (PostgreSQL、Auth、Realtime)
-- **API**: tRPC（型安全なAPI）
-- **エディタ**: CodeMirror 6
+- **エディタ**: CodeMirror 6（Markdownサポート）
+- **スタイリング**: Tailwind CSS、Framer Motion（アニメーション）
+- **アイコン**: Lucide React
+- **バリデーション**: Zod
 
 ### 主要ディレクトリ構造
 
@@ -90,9 +95,16 @@ npm run test
 
 ### トリガーとRLS
 
-- 更新時刻の自動設定
-- Memoサイズの自動計算
+- 更新時刻の自動設定（`update_updated_at_column`）
+- Memoサイズの自動計算（`update_memo_size`）
 - 認証ユーザーは全データにアクセス可能
+
+### データベースマイグレーション
+
+1. **001_initial_schema**: 基本スキーマ定義
+2. **002_fix_schema**: スキーマ修正
+3. **003_create_functions**: 関数とトリガー作成
+4. **004_remove_project_lines**: プロジェクトライン削除（PERT図レイアウトへ移行）
 
 ## 環境変数
 
@@ -127,9 +139,11 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 ### 物理演算の制御
 
-- **KnowledgeBase**: 自由配置（D3.js Force Simulation）
-- **IdeaStock以降**: 垂直制約付き配置（`useVerticalConstraints`）
+- **統合Force Simulation**: `useUnifiedForceSimulation`で全ノードを統一管理
+- **KnowledgeBase**: 自由配置（Force Simulation）
+- **IdeaStock以降**: 垂直制約付き配置（PERT図レイアウト）
 - **最適化**: `useMemoizedNodes`でノードの再計算を最小化
+- **中心引力**: 削除済み（パフォーマンス最適化のため）
 
 ### エリア別ノード作成ルール
 
@@ -141,6 +155,31 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 // Learn: Improvement
 ```
 
-## 開発ログ
+## API実装状況
 
-開発時の変更は `/docs/devlog.md` に記録すること
+- **認証API**: `/app/api/auth/create-test-user/route.ts`（テストユーザー作成用）
+- **データアクセス**: Supabase Client SDKを直接使用
+- **tRPC**: 依存関係はあるが未実装
+
+## 未実装の主要機能
+
+詳細は `/docs/UNIMPLEMENTED-FEATURES.md` を参照：
+- タグの編集・削除機能
+- ダッシュボード画面の表示
+- KPIデータの表示・編集
+- レポート生成・閲覧機能
+- 添付ファイル機能
+- 外部サービス連携
+
+## 関連ドキュメント
+
+- **統合仕様書**: `/docs/SPECIFICATION.md`
+- **グラフビュー仕様**: `/docs/GRAPHVIEW-SPECIFICATION.md`
+- **未実装機能**: `/docs/UNIMPLEMENTED-FEATURES.md`
+- **開発ログ**: `/docs/devlog.md`
+
+## 開発時の重要な変更点
+
+- **プロジェクトライン削除**: 垂直線に沿った配置からPERT図レイアウトへ移行
+- **中心引力の削除**: パフォーマンス向上のため
+- **統合Force Simulation**: 複数のシミュレーションを統一管理に変更

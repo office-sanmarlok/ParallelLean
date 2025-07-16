@@ -141,7 +141,7 @@ export function useUnifiedForceSimulation() {
             }
             // Task間の依存関係は短めの距離
             if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
-              return 60  // 80 → 60 にさらに短縮
+              return 40  // 80 → 60 にさらに短縮
             }
             
             // 同じエリア内の場合

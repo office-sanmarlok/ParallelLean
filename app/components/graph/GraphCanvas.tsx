@@ -64,6 +64,7 @@ export function GraphCanvas() {
   }>({ isOpen: false, mvpNodeId: null })
   const [isSimulationActive, setIsSimulationActive] = useState(true)
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
+  const [taskStatusSelectionNode, setTaskStatusSelectionNode] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -404,7 +405,7 @@ export function GraphCanvas() {
         x: parentPos.x + offsetX,
         y: parentPos.y + 150,
       },
-      task_status: 'pending',
+      task_status: 'incomplete',
       metadata: {
         proposalId: (parentTask.metadata as any)?.proposalId,
       },
@@ -457,7 +458,7 @@ export function GraphCanvas() {
               x: parentPos.x + offsetX,
               y: parentPos.y + 150,
             },
-            task_status: 'pending',
+            task_status: 'incomplete',
             metadata: {
               proposalId: (parentTask.metadata as any)?.proposalId,
             },
@@ -501,50 +502,87 @@ export function GraphCanvas() {
     })()
   }
 
-  // Taskノードの状態を変更
+  // Taskノードの状態を変更（状態選択ノードを表示）
   const handleChangeTaskStatus = async (taskId: string) => {
-    console.log('handleChangeTaskStatus called with taskId:', taskId)
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
-    if (!taskNode) {
-      console.error('Task node not found:', taskId)
+    if (!taskNode) return
+
+    // 既に状態選択ノードが表示されている場合は閉じる
+    if (taskStatusSelectionNode === taskId) {
+      setTaskStatusSelectionNode(null)
+      // 状態選択ノードを削除
+      const statusNodes = virtualNodes.filter(node => node.id.startsWith(`virtual-status-option-${taskId}`))
+      const otherNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
+      setVirtualNodes(otherNodes)
       return
     }
 
+    // 状態選択ノードを作成
+    const taskPos = typeof taskNode.position === 'object' && taskNode.position !== null
+      ? (taskNode.position as any)
+      : { x: 0, y: 0 }
+
+    const statusOptions = [
+      { status: 'pending', label: '保留', color: '#F59E0B' },
+      { status: 'incomplete', label: '未了', color: '#EF4444' },
+      { status: 'completed', label: '完了', color: '#10B981' }
+    ]
+
+    const statusSelectionNodes = statusOptions.map((option, index) => {
+      const angle = (index - 1) * 45 // -45°, 0°, 45°
+      const distance = 80
+      const x = taskPos.x + distance * Math.cos((angle - 90) * Math.PI / 180)
+      const y = taskPos.y + distance * Math.sin((angle - 90) * Math.PI / 180)
+
+      return createVirtualNode({
+        id: `virtual-status-option-${taskId}-${option.status}`,
+        type: 'status-option',
+        area: taskNode.area,
+        title: option.label,
+        position: { x, y },
+        metadata: {
+          parentId: taskId,
+          status: option.status,
+          color: option.color,
+          buttonType: 'select-status',
+        },
+      })
+    })
+
+    // 既存のバーチャルノードに状態選択ノードを追加
+    setVirtualNodes([...virtualNodes, ...statusSelectionNodes])
+    setTaskStatusSelectionNode(taskId)
+  }
+
+  // 実際に状態を変更する関数
+  const handleSelectTaskStatus = async (taskId: string, newStatus: 'pending' | 'incomplete' | 'completed') => {
+    const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
+    if (!taskNode) return
+
     try {
-      // 現在の状態から次の状態へ遷移（保留→未完了→完了）
-      const currentStatus = taskNode.task_status || 'pending'
-      const statusCycle = ['pending', 'incomplete', 'completed'] // 保留→未完了→完了
-      const currentIndex = statusCycle.indexOf(currentStatus)
-      const nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length] as
-        | 'pending'
-        | 'incomplete'
-        | 'completed'
-
-      console.log('Changing status from', currentStatus, 'to', nextStatus)
-
       // データベースを更新
       const { error } = await supabase
         .from('nodes')
-        .update({ task_status: nextStatus })
+        .update({ task_status: newStatus })
         .eq('id', taskId)
 
       if (error) throw error
 
       // ストアを更新
       updateNode(taskId, {
-        task_status: nextStatus,
+        task_status: newStatus,
       })
 
-      console.log('Task status updated successfully')
-
-      // ボタンノードは維持（状態変更後も継続して操作可能）
+      // 状態選択ノードを削除
+      const statusNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
+      setVirtualNodes(statusNodes)
+      setTaskStatusSelectionNode(null)
 
       // 全Taskが完了しているかチェック
-      if (nextStatus === 'completed') {
+      if (newStatus === 'completed') {
         setTimeout(() => {
-          console.log('Checking all tasks completed after status change')
           checkAllTasksCompleted()
-        }, 500) // ストア更新を待つ（時間を長めに）
+        }, 500)
       }
     } catch (error) {
       console.error('Failed to change task status:', error)
@@ -1280,11 +1318,14 @@ export function GraphCanvas() {
       return
     } else if (node.id.startsWith('virtual-task-status-')) {
       const metadata = node.metadata as any
-      console.log('Status button clicked, metadata:', metadata)
       if (metadata?.parentId) {
         handleChangeTaskStatus(metadata.parentId)
-      } else {
-        console.error('No parentId found in metadata')
+      }
+      return
+    } else if (node.id.startsWith('virtual-status-option-')) {
+      const metadata = node.metadata as any
+      if (metadata?.parentId && metadata?.status) {
+        handleSelectTaskStatus(metadata.parentId, metadata.status)
       }
       return
     } else if (node.id.startsWith('virtual-task-link-')) {
