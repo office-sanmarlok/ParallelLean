@@ -141,7 +141,7 @@ export function useUnifiedForceSimulation() {
             }
             // Task間の依存関係は短めの距離
             if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
-              return 80  // 100 → 80 に短縮
+              return 60  // 80 → 60 にさらに短縮
             }
             
             // 同じエリア内の場合
@@ -184,7 +184,7 @@ export function useUnifiedForceSimulation() {
             
             // Task間の依存関係は強い結合
             if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
-              return 0.7  // 0.3 → 0.7 に強化
+              return 0.85  // 0.7 → 0.85 にさらに強化
             }
 
             // その他のエッジは弱い結合
