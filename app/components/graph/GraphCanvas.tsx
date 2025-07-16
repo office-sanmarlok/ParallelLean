@@ -503,7 +503,7 @@ export function GraphCanvas() {
   }
 
   // Taskノードの状態を変更（状態選択ノードを表示）
-  const handleChangeTaskStatus = async (taskId: string) => {
+  const handleChangeTaskStatus = async (taskId: string, statusButtonNode?: any) => {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
@@ -517,15 +517,21 @@ export function GraphCanvas() {
       return
     }
 
-    // 現在表示されている状態変更ボタンを探す
-    const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
-    if (!statusButton) {
-      console.error('Status button not found for task:', taskId)
-      return
-    }
+    // 状態変更ボタンの位置を取得
+    let statusButtonPos: { x: number; y: number }
     
-    // 状態変更ボタンの位置を基準にする
-    const statusButtonPos = statusButton.position as { x: number; y: number }
+    if (statusButtonNode && statusButtonNode.position) {
+      // 引数から直接位置を取得
+      statusButtonPos = statusButtonNode.position as { x: number; y: number }
+    } else {
+      // フォールバック：virtualNodesから探す
+      const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
+      if (!statusButton) {
+        console.error('Status button not found for task:', taskId)
+        return
+      }
+      statusButtonPos = statusButton.position as { x: number; y: number }
+    }
 
     const statusOptions = [
       { status: 'pending', label: '◔', color: '#F59E0B' },     // 保留（黄）
@@ -1324,7 +1330,7 @@ export function GraphCanvas() {
     } else if (node.id.startsWith('virtual-task-status-')) {
       const metadata = node.metadata as any
       if (metadata?.parentId) {
-        handleChangeTaskStatus(metadata.parentId)
+        handleChangeTaskStatus(metadata.parentId, node)
       }
       return
     } else if (node.id.startsWith('virtual-status-option-')) {
