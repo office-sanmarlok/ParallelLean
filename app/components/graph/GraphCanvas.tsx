@@ -517,16 +517,15 @@ export function GraphCanvas() {
       return
     }
 
-    // 状態変更ボタンの位置を基準にする
-    const taskPos = typeof taskNode.position === 'object' && taskNode.position !== null
-      ? (taskNode.position as any)
-      : { x: 0, y: 0 }
-    
-    // 状態変更ボタンの位置（元のボタンと同じ位置）
-    const statusButtonPos = {
-      x: taskPos.x + 80,
-      y: taskPos.y + 60
+    // 現在表示されている状態変更ボタンを探す
+    const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
+    if (!statusButton) {
+      console.error('Status button not found for task:', taskId)
+      return
     }
+    
+    // 状態変更ボタンの位置を基準にする
+    const statusButtonPos = statusButton.position as { x: number; y: number }
 
     const statusOptions = [
       { status: 'pending', label: '◔', color: '#F59E0B' },     // 保留（黄）
@@ -536,7 +535,7 @@ export function GraphCanvas() {
 
     const statusSelectionNodes = statusOptions.map((option, index) => {
       const angle = (index - 1) * 45 - 90 // -135°, -90°, -45°（上方向に展開）
-      const distance = 40 // ボタンからの距離
+      const distance = 30 // ボタンからの距離（少し近づける）
       const x = statusButtonPos.x + distance * Math.cos(angle * Math.PI / 180)
       const y = statusButtonPos.y + distance * Math.sin(angle * Math.PI / 180)
 
