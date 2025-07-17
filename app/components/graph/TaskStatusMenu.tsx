@@ -19,22 +19,32 @@ export function TaskStatusMenu({ node }: TaskStatusMenuProps) {
   if (node.type !== 'task') return null
 
   const updateTaskStatus = async (newStatus: TaskStatus) => {
+    // 現在の状態を保存（ロールバック用）
+    const oldStatus = node.task_status
+
+    // 楽観的更新：即座にUIを更新
+    updateNode(node.id, { task_status: newStatus })
+    setIsOpen(false)
+
+    // MVP生成チェックを先に実行（楽観的）
+    if (newStatus === 'completed') {
+      checkForMVPGeneration()
+    }
+
     try {
+      // バックグラウンドでデータベースを更新
       const { error } = await supabase
         .from('nodes')
         .update({ task_status: newStatus })
         .eq('id', node.id)
 
-      if (!error) {
-        // Update store
-        updateNode(node.id, { task_status: newStatus })
-        setIsOpen(false)
-
-        // Check for automatic MVP generation when all tasks are completed
-        checkForMVPGeneration()
-      }
+      if (error) throw error
     } catch (error) {
       console.error('Failed to update task status:', error)
+      
+      // エラー時はロールバック
+      updateNode(node.id, { task_status: oldStatus })
+      setIsOpen(false)
     }
   }
 

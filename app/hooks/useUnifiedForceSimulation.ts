@@ -19,11 +19,20 @@ export function useUnifiedForceSimulation() {
           ? (node.position as any)
           : { x: 0, y: 0 }
 
-      return {
+      const simNode = {
         ...node,
         x: pos.x,
         y: pos.y,
       } as SimulationNode
+      
+      // 固定フラグがある場合は位置を固定
+      const metadata = node.metadata as any
+      if (metadata?.fixed) {
+        (simNode as any).fx = pos.x
+        ;(simNode as any).fy = pos.y
+      }
+      
+      return simNode
     })
 
     if (simulationNodes.length === 0) {
@@ -39,6 +48,12 @@ export function useUnifiedForceSimulation() {
     virtualNodes.forEach((vNode) => {
       const metadata = vNode.metadata as any
       if (metadata?.parentId) {
+        // 状態選択ノードの場合は、タスクノードではなくステータスボタンに接続
+        if (metadata.buttonType === 'select-status' && metadata.taskId) {
+          // 状態選択ノードはステータスボタンに接続済み（parentIdがステータスボタンID）
+          // そのまま仮想エッジを作成
+        }
+        
         virtualEdges.push({
           id: `virtual-edge-${vNode.id}`,
           source_id: metadata.parentId,
@@ -99,6 +114,11 @@ export function useUnifiedForceSimulation() {
             // IdeaStockエリアのProposal/Researchは衝突半径を大きくする
             if (d.area === 'idea_stock' && (d.type === 'proposal' || d.type === 'research')) {
               return getNodeSize(d) / 2 + 30 // より大きな間隔を保つ
+            }
+            // 状態選択ノードは固定位置のため衝突半径を小さくする
+            const metadata = (d as any).metadata
+            if (metadata?.buttonType === 'select-status') {
+              return getNodeSize(d) / 2 + 5
             }
             return getNodeSize(d) / 2 + 10
           })

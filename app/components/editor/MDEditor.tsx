@@ -144,18 +144,28 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
     const tagNode = nodes.find((n) => n.type === tagType && n.title === tagToRemove)
 
     if (tagNode) {
-      // Delete edge
+      // Find edge
       const edge = edges.find(
         (e) => e.source_id === node.id && e.target_id === tagNode.id && e.type === 'tag'
       )
 
       if (edge) {
-        await supabase.from('edges').delete().eq('id', edge.id)
-
-        // Remove from store
+        // 楽観的更新：即座にUIから削除
         removeEdge(edge.id)
-
         setTags(tags.filter((t) => t !== tagToRemove))
+
+        try {
+          // バックグラウンドでデータベースから削除
+          const { error } = await supabase.from('edges').delete().eq('id', edge.id)
+          
+          if (error) throw error
+        } catch (error) {
+          console.error('Failed to remove tag:', error)
+          
+          // エラー時はロールバック
+          addEdge(edge)
+          setTags([...tags, tagToRemove])
+        }
       }
     }
   }

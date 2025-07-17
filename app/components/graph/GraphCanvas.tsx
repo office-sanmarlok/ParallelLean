@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo } from 'react'
 import type Konva from 'konva'
-import { Stage, Layer, Group, Rect } from 'react-konva'
+import { Stage, Layer, Group, Rect, Line } from 'react-konva'
 import { useGraphStore } from '@/app/stores/graphStore'
 import { createClient } from '@/app/lib/supabase/client'
 import { getAreaBounds } from '@/app/lib/graph/layout'
@@ -495,8 +495,14 @@ export function GraphCanvas() {
         // エラー時は一時的なノードを削除
         deleteNode(tempId)
         removeEdge(tempEdge.id)
-        setSelectedNode(null)
-        setEditorNode(null)
+        
+        // 選択中のノードが一時ノードだった場合は親ノードを選択
+        if (selectedNode?.id === tempId && parentTask) {
+          setSelectedNode(parentTask)
+          setEditorNode(parentTask)
+        }
+        
+        // 仮想ノードをクリア
         setVirtualNodes([])
       }
     })()
@@ -517,21 +523,19 @@ export function GraphCanvas() {
       return
     }
 
-    // 状態変更ボタンの位置を取得
+    // 状態変更ボタンの実際の位置を取得
     let statusButtonPos: { x: number; y: number }
     
-    if (statusButtonNode && statusButtonNode.position) {
-      // 引数から直接位置を取得
-      statusButtonPos = statusButtonNode.position as { x: number; y: number }
-    } else {
-      // フォールバック：virtualNodesから探す
-      const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
-      if (!statusButton) {
-        console.error('Status button not found for task:', taskId)
-        return
-      }
-      statusButtonPos = statusButton.position as { x: number; y: number }
+    // virtualNodesから現在の位置を取得（物理シミュレーション後の実際の位置）
+    const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
+    if (!statusButton || !statusButton.position) {
+      console.error('Status button not found for task:', taskId)
+      return
     }
+    statusButtonPos = statusButton.position as { x: number; y: number }
+    
+    console.log('Using status button position from virtualNodes:', statusButtonPos)
+    console.log('Task position:', (taskNode.position as any))
 
     const statusOptions = [
       { status: 'pending', label: '◔', color: '#F59E0B' },     // 保留（黄）
@@ -540,8 +544,8 @@ export function GraphCanvas() {
     ]
 
     const statusSelectionNodes = statusOptions.map((option, index) => {
-      const angle = (index - 1) * 45 - 90 // -135°, -90°, -45°（上方向に展開）
-      const distance = 30 // ボタンからの距離（少し近づける）
+      const angle = (index - 1) * 45 + 90 // 45°, 90°, 135°（下方向に展開、より広い角度）
+      const distance = 60 // ボタンからの距離を増やす
       const x = statusButtonPos.x + distance * Math.cos(angle * Math.PI / 180)
       const y = statusButtonPos.y + distance * Math.sin(angle * Math.PI / 180)
 
@@ -552,7 +556,8 @@ export function GraphCanvas() {
         title: option.label,
         position: { x, y },
         metadata: {
-          parentId: taskId,
+          parentId: `virtual-task-status-${taskId}`, // ステータスボタンを親として設定
+          taskId: taskId, // タスクIDも保持
           status: option.status,
           color: option.color,
           buttonType: 'select-status',
@@ -563,6 +568,12 @@ export function GraphCanvas() {
     // 既存のバーチャルノードに状態選択ノードを追加
     setVirtualNodes([...virtualNodes, ...statusSelectionNodes])
     setTaskStatusSelectionNode(taskId)
+    
+    // シミュレーションを再開
+    const simulation = (window as any).__d3Simulation
+    if (simulation) {
+      simulation.alpha(0.3).restart()
+    }
   }
 
   // 実際に状態を変更する関数
@@ -570,33 +581,49 @@ export function GraphCanvas() {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
+    // 現在の状態を保存（ロールバック用）
+    const oldStatus = taskNode.task_status
+
+    // 楽観的更新：即座にUIを更新
+    updateNode(taskId, {
+      task_status: newStatus,
+    })
+
+    // 状態選択ノードを削除
+    const statusNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
+    setVirtualNodes(statusNodes)
+    setTaskStatusSelectionNode(null)
+
+    // 全Taskが完了しているかチェック（楽観的）
+    if (newStatus === 'completed') {
+      setTimeout(() => {
+        checkAllTasksCompleted()
+      }, 500)
+    }
+
     try {
-      // データベースを更新
+      // バックグラウンドでデータベースを更新
       const { error } = await supabase
         .from('nodes')
         .update({ task_status: newStatus })
         .eq('id', taskId)
 
       if (error) throw error
-
-      // ストアを更新
+    } catch (error) {
+      console.error('Failed to change task status:', error)
+      
+      // エラー時はロールバック
       updateNode(taskId, {
-        task_status: newStatus,
+        task_status: oldStatus,
       })
 
-      // 状態選択ノードを削除
-      const statusNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
-      setVirtualNodes(statusNodes)
-      setTaskStatusSelectionNode(null)
-
-      // 全Taskが完了しているかチェック
-      if (newStatus === 'completed') {
+      // 全Taskが完了チェックをキャンセル（ロールバック時）
+      if (newStatus === 'completed' && oldStatus !== 'completed') {
+        // 必要に応じて完了チェックを再実行
         setTimeout(() => {
           checkAllTasksCompleted()
         }, 500)
       }
-    } catch (error) {
-      console.error('Failed to change task status:', error)
     }
   }
 
@@ -739,8 +766,14 @@ export function GraphCanvas() {
         // エラー時は一時的なノードを削除
         deleteNode(tempMvpId)
         removeEdge(tempEdgeId)
-        setSelectedNode(null)
-        setEditorNode(null)
+        
+        // 選択中のノードが一時MVPだった場合はタスクノードを選択
+        if (selectedNode?.id === tempMvpId) {
+          setSelectedNode(taskNode)
+          setEditorNode(taskNode)
+        }
+        
+        // 仮想ノードをクリア
         setVirtualNodes([])
       }
     })()
@@ -1069,7 +1102,7 @@ export function GraphCanvas() {
         x: 1000, // 中央に配置
         y: buildBounds.minY + 100,
       },
-      task_status: 'pending' as const,
+      task_status: 'incomplete' as const,
       metadata: {
         proposalId: proposalId, // Proposalとの関連を保存
       },
@@ -1335,8 +1368,8 @@ export function GraphCanvas() {
       return
     } else if (node.id.startsWith('virtual-status-option-')) {
       const metadata = node.metadata as any
-      if (metadata?.parentId && metadata?.status) {
-        handleSelectTaskStatus(metadata.parentId, metadata.status)
+      if (metadata?.taskId && metadata?.status) {
+        handleSelectTaskStatus(metadata.taskId, metadata.status)
       }
       return
     } else if (node.id.startsWith('virtual-task-link-')) {
@@ -1540,29 +1573,57 @@ export function GraphCanvas() {
               {visibleEdges.map((edge) => (
                 <GraphEdge key={edge.id} edge={edge} nodes={nodes} />
               ))}
+              
+              {/* 状態選択ノードとボタンの接続線 */}
+              {taskStatusSelectionNode && virtualNodes
+                .filter(node => node.id.startsWith(`virtual-status-option-${taskStatusSelectionNode}`))
+                .map(statusNode => {
+                  const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskStatusSelectionNode}`)
+                  if (!statusButton) return null
+                  
+                  const buttonPos = statusButton.position as { x: number; y: number }
+                  const nodePos = statusNode.position as { x: number; y: number }
+                  
+                  return (
+                    <Line
+                      key={`line-${statusNode.id}`}
+                      points={[buttonPos.x, buttonPos.y, nodePos.x, nodePos.y]}
+                      stroke="#9CA3AF"
+                      strokeWidth={1}
+                      dash={[5, 5]}
+                      opacity={0.5}
+                    />
+                  )
+                })}
             </Group>
 
             {/* 親ノードとボタンノードを繋ぐ点線（ノードの下に描画） */}
             {virtualNodes.length > 0 && selectedNode && (
               <Group>
-                {virtualNodes.map((buttonNode, index) => (
-                  <GraphEdge
-                    key={`virtual-edge-${index}`}
-                    edge={{
-                      id: `virtual-edge-${index}`,
-                      source_id: selectedNode.id,
-                      target_id: buttonNode.id,
-                      type: 'tag',
-                      // 仮想エッジのためのデフォルト値
-                      is_branch: false,
-                      is_merge: false,
-                      created_at: new Date().toISOString(),
-                      branch_from: null,
-                      merge_to: null,
-                    }}
-                    nodes={[...nodes, ...virtualNodes]}
-                  />
-                ))}
+                {virtualNodes
+                  .filter(buttonNode => {
+                    // 状態選択ノードは除外（これらは上で個別に線を描画済み）
+                    const metadata = buttonNode.metadata as any
+                    return metadata?.buttonType !== 'select-status'
+                  })
+                  .map((buttonNode, index) => (
+                    <GraphEdge
+                      key={`virtual-edge-${index}`}
+                      edge={{
+                        id: `virtual-edge-${index}`,
+                        source_id: selectedNode.id,
+                        target_id: buttonNode.id,
+                        type: 'tag',
+                        // 仮想エッジのためのデフォルト値
+                        is_branch: false,
+                        is_merge: false,
+                        created_at: new Date().toISOString(),
+                        branch_from: null,
+                        merge_to: null,
+                      }}
+                      nodes={[...nodes, ...virtualNodes]}
+                    />
+                  ))}
               </Group>
             )}
 

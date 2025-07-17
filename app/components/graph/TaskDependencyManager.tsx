@@ -29,21 +29,39 @@ export function TaskDependencyManager() {
   const createDependency = async (targetTask: Node) => {
     if (!sourceTask || !targetTask) return
 
-    try {
-      // 分岐または合流を判定
-      const existingSourceEdges = await supabase
-        .from('edges')
-        .select('*')
-        .eq('source_id', sourceTask.id)
+    // 一時的なエッジデータを作成
+    const tempEdgeId = `temp-edge-${Date.now()}`
+    const tempEdge = {
+      id: tempEdgeId,
+      source_id: sourceTask.id,
+      target_id: targetTask.id,
+      type: 'dependency' as const,
+      is_branch: false,
+      is_merge: false,
+      branch_from: null,
+      merge_to: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
 
-      const existingTargetEdges = await supabase
-        .from('edges')
-        .select('*')
-        .eq('target_id', targetTask.id)
+    // 楽観的更新：即座にエッジを追加
+    addEdge(tempEdge)
+
+    // UIの状態を更新
+    setLinkingMode(false)
+    setSourceTask(null)
+
+    try {
+      // バックグラウンドで分岐または合流を判定
+      const [existingSourceEdges, existingTargetEdges] = await Promise.all([
+        supabase.from('edges').select('*').eq('source_id', sourceTask.id),
+        supabase.from('edges').select('*').eq('target_id', targetTask.id)
+      ])
 
       const isBranch = existingSourceEdges.data && existingSourceEdges.data.length > 0
       const isMerge = existingTargetEdges.data && existingTargetEdges.data.length > 0
 
+      // データベースに保存
       const { data: newEdge, error } = await supabase
         .from('edges')
         .insert({
@@ -59,16 +77,24 @@ export function TaskDependencyManager() {
       if (error) throw error
 
       if (newEdge) {
+        // 一時エッジを削除して実際のエッジに置き換え
+        const { removeEdge } = useGraphStore.getState()
+        removeEdge(tempEdgeId)
         addEdge(newEdge)
       }
 
       // 垂直配置を更新
       await updateVerticalLayout()
-
-      setLinkingMode(false)
-      setSourceTask(null)
     } catch (error) {
       console.error('Failed to create dependency:', error)
+      
+      // エラー時は一時エッジを削除（ロールバック）
+      const { removeEdge } = useGraphStore.getState()
+      removeEdge(tempEdgeId)
+      
+      // UIの状態を復元
+      setLinkingMode(true)
+      setSourceTask(sourceTask)
     }
   }
 
