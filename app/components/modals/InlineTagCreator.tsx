@@ -21,9 +21,41 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
       ? (parentNode.position as any)
       : { x: 0, y: 0 }
 
-  // ボタンノードの位置に表示
-  const screenX = position.x + 100
-  const screenY = position.y
+  // Canvasの変換を取得（グローバルに保存されているStageを使用）
+  const stage = (window as any).__graphStage
+  let screenX = position.x + 100
+  let screenY = position.y
+
+  if (stage) {
+    // Canvas座標からスクリーン座標に変換
+    const stagePosition = stage.position()
+    const stageScale = stage.scale()
+    screenX = (position.x + 100) * stageScale.x + stagePosition.x
+    screenY = position.y * stageScale.y + stagePosition.y
+  }
+
+  // 画面内に収まるように調整
+  const inputWidth = 200 // 推定入力欄幅
+  const inputHeight = 40 // 推定入力欄高さ
+  const padding = 20 // 画面端からの余白
+  
+  // 右端チェック
+  if (screenX + inputWidth / 2 > window.innerWidth - padding) {
+    screenX = window.innerWidth - padding - inputWidth / 2
+  }
+  // 左端チェック
+  if (screenX - inputWidth / 2 < padding) {
+    screenX = padding + inputWidth / 2
+  }
+  // 下端チェック
+  if (screenY + inputHeight / 2 > window.innerHeight - padding) {
+    screenY = window.innerHeight - padding - inputHeight / 2
+  }
+  // 上端チェック（ヘッダーの高さを考慮）
+  const headerHeight = 64
+  if (screenY - inputHeight / 2 < headerHeight + padding) {
+    screenY = headerHeight + padding + inputHeight / 2
+  }
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -128,13 +160,14 @@ export function InlineTagCreator({ parentNode, onClose, onCreated }: InlineTagCr
         type="text"
         placeholder="タグ名を入力..."
         style={{
-          padding: '8px 12px',
-          borderRadius: '6px',
+          padding: '10px 14px',
+          borderRadius: '8px',
           border: '2px solid #4F46E5',
           backgroundColor: '#ffffff',
           fontSize: '14px',
-          minWidth: '150px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          minWidth: '180px',
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.15)',
+          outline: 'none',
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {

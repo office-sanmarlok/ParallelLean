@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo } from 'react'
 import type Konva from 'konva'
-import { Stage, Layer, Group, Rect } from 'react-konva'
+import { Stage, Layer, Group, Rect, Line } from 'react-konva'
 import { useGraphStore } from '@/app/stores/graphStore'
 import { createClient } from '@/app/lib/supabase/client'
 import { getAreaBounds } from '@/app/lib/graph/layout'
@@ -44,6 +44,7 @@ export function GraphCanvas() {
     addNode,
     addEdge,
     updateNode,
+    removeEdge,
   } = useGraphStore()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [scale, setScale] = useState(1)
@@ -63,6 +64,7 @@ export function GraphCanvas() {
   }>({ isOpen: false, mvpNodeId: null })
   const [isSimulationActive, setIsSimulationActive] = useState(true)
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now())
+  const [taskStatusSelectionNode, setTaskStatusSelectionNode] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -237,20 +239,21 @@ export function GraphCanvas() {
     const tagNode = nodes.find((n) => n.id === tagId && n.type === 'kb_tag')
     if (!tagNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', tagId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(tagId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(tagId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete tag:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', tagId)
+      } catch (error) {
+        console.error('Failed to delete tag from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Proposalノードを削除
@@ -258,20 +261,21 @@ export function GraphCanvas() {
     const proposalNode = nodes.find((n) => n.id === proposalId && n.type === 'proposal')
     if (!proposalNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', proposalId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(proposalId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(proposalId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete proposal:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', proposalId)
+      } catch (error) {
+        console.error('Failed to delete proposal from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Researchノードを作成
@@ -343,8 +347,6 @@ export function GraphCanvas() {
     setVirtualNodes([])
     setShowTagButton(null)
 
-    // ユーザーに指示を表示
-    console.log('リンク作成モード: Memoノードをクリックして接続してください')
   }
 
   // Taskノードを削除
@@ -352,20 +354,21 @@ export function GraphCanvas() {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', taskId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(taskId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(taskId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete task:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', taskId)
+      } catch (error) {
+        console.error('Failed to delete task from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // 新しいTaskノードを追加
@@ -373,117 +376,254 @@ export function GraphCanvas() {
     const parentTask = nodes.find((n) => n.id === parentTaskId && n.type === 'task')
     if (!parentTask) return
 
-    try {
-      const parentPos =
-        typeof parentTask.position === 'object' && parentTask.position !== null
-          ? (parentTask.position as any)
-          : { x: 0, y: 0 }
+    const parentPos =
+      typeof parentTask.position === 'object' && parentTask.position !== null
+        ? (parentTask.position as any)
+        : { x: 0, y: 0 }
 
-      // 親タスクから出ているエッジの数を数える（複数の子タスクに対応）
-      const childEdges = edges.filter((e) => e.source_id === parentTaskId)
-      const childCount = childEdges.length
+    // 親タスクから出ているエッジの数を数える（複数の子タスクに対応）
+    const childEdges = edges.filter((e) => e.source_id === parentTaskId)
+    const childCount = childEdges.length
 
-      // 新しいタスクの位置を計算（左右に広がる）
-      const spacing = 150
-      const offsetX =
-        childCount % 2 === 0 ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
+    // 新しいタスクの位置を計算（左右に広がる）
+    const spacing = 150
+    const offsetX =
+      childCount % 2 === 0 ? spacing * (childCount / 2) : -spacing * Math.floor(childCount / 2)
 
-      // 新しいタスクを作成
-      const { data: newTask, error } = await supabase
-        .from('nodes')
-        .insert({
-          type: 'task',
-          area: 'build',
-          title: '新しいタスク',
-          content: '',
-          position: {
-            x: parentPos.x + offsetX,
-            y: parentPos.y + 150,
-          },
-          task_status: 'pending',
-          metadata: {
-            proposalId: (parentTask.metadata as any)?.proposalId,
-          },
-        })
-        .select()
-        .single()
+    // 一時的なIDとタイムスタンプを生成
+    const tempId = `temp-task-${Date.now()}`
+    const now = new Date().toISOString()
 
-      if (error) throw error
-
-      // エッジを作成（親タスクから新タスクへ）
-      const { data: edge } = await supabase
-        .from('edges')
-        .insert({
-          source_id: parentTaskId,
-          target_id: newTask.id,
-          type: 'flow',
-        })
-        .select()
-        .single()
-
-      // ストアに追加
-      addNode(newTask)
-      if (edge) addEdge(edge)
-
-      // 新しいタスクを選択
-      setSelectedNode(newTask)
-      setEditorNode(newTask)
-
-      // ボタンノードを更新
-      const buttons = createButtonNodes(newTask, nodes)
-      setVirtualNodes(buttons)
-    } catch (error) {
-      console.error('Failed to add task:', error)
+    // 楽観的更新：即座に新しいタスクをUIに追加
+    const tempTask: Node = {
+      id: tempId,
+      type: 'task',
+      area: 'build',
+      title: '新しいタスク',
+      content: '',
+      position: {
+        x: parentPos.x + offsetX,
+        y: parentPos.y + 150,
+      },
+      task_status: 'incomplete',
+      metadata: {
+        proposalId: (parentTask.metadata as any)?.proposalId,
+      },
+      created_at: now,
+      updated_at: now,
+      size: null,
+      branch_id: null,
+      color: null,
+      inherited_kb_tags: null,
+      project_line_id: null,
+      vertical_order: null,
     }
+
+    const tempEdge: Edge = {
+      id: `temp-edge-${Date.now()}`,
+      source_id: parentTaskId,
+      target_id: tempId,
+      type: 'flow',
+      is_branch: false,
+      is_merge: false,
+      created_at: now,
+      branch_from: null,
+      merge_to: null,
+    }
+
+    // ストアに追加
+    addNode(tempTask)
+    addEdge(tempEdge)
+
+    // 新しいタスクを選択
+    setSelectedNode(tempTask)
+    setEditorNode(tempTask)
+
+    // ボタンノードを更新
+    const buttons = createButtonNodes(tempTask, [...nodes, tempTask])
+    setVirtualNodes(buttons)
+
+    // バックグラウンドでDB作成
+    ;(async () => {
+      try {
+        // 新しいタスクを作成
+        const { data: newTask, error } = await supabase
+          .from('nodes')
+          .insert({
+            type: 'task',
+            area: 'build',
+            title: '新しいタスク',
+            content: '',
+            position: {
+              x: parentPos.x + offsetX,
+              y: parentPos.y + 150,
+            },
+            task_status: 'incomplete',
+            metadata: {
+              proposalId: (parentTask.metadata as any)?.proposalId,
+            },
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // エッジを作成（親タスクから新タスクへ）
+        const { data: edge } = await supabase
+          .from('edges')
+          .insert({
+            source_id: parentTaskId,
+            target_id: newTask.id,
+            type: 'flow',
+          })
+          .select()
+          .single()
+
+        // 一時的なIDを実際のIDに置き換え
+        deleteNode(tempId)
+        removeEdge(tempEdge.id)
+        addNode(newTask)
+        if (edge) addEdge(edge)
+
+        // 選択中のノードも更新
+        if (selectedNode?.id === tempId) {
+          setSelectedNode(newTask)
+          setEditorNode(newTask)
+        }
+      } catch (error) {
+        console.error('Failed to add task to database:', error)
+        // エラー時は一時的なノードを削除
+        deleteNode(tempId)
+        removeEdge(tempEdge.id)
+        
+        // 選択中のノードが一時ノードだった場合は親ノードを選択
+        if (selectedNode?.id === tempId && parentTask) {
+          setSelectedNode(parentTask)
+          setEditorNode(parentTask)
+        }
+        
+        // 仮想ノードをクリア
+        setVirtualNodes([])
+      }
+    })()
   }
 
-  // Taskノードの状態を変更
-  const handleChangeTaskStatus = async (taskId: string) => {
-    console.log('handleChangeTaskStatus called with taskId:', taskId)
+  // Taskノードの状態を変更（状態選択ノードを表示）
+  const handleChangeTaskStatus = async (taskId: string, statusButtonNode?: any) => {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
-    if (!taskNode) {
-      console.error('Task node not found:', taskId)
+    if (!taskNode) return
+
+    // 既に状態選択ノードが表示されている場合は閉じる
+    if (taskStatusSelectionNode === taskId) {
+      setTaskStatusSelectionNode(null)
+      // 状態選択ノードを削除
+      const statusNodes = virtualNodes.filter(node => node.id.startsWith(`virtual-status-option-${taskId}`))
+      const otherNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
+      setVirtualNodes(otherNodes)
       return
     }
 
+    // 状態変更ボタンの実際の位置を取得
+    let statusButtonPos: { x: number; y: number }
+    
+    // virtualNodesから現在の位置を取得（物理シミュレーション後の実際の位置）
+    const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskId}`)
+    if (!statusButton || !statusButton.position) {
+      console.error('Status button not found for task:', taskId)
+      return
+    }
+    statusButtonPos = statusButton.position as { x: number; y: number }
+    
+    console.log('Using status button position from virtualNodes:', statusButtonPos)
+    console.log('Task position:', (taskNode.position as any))
+
+    const statusOptions = [
+      { status: 'pending', label: '◔', color: '#F59E0B' },     // 保留（黄）
+      { status: 'incomplete', label: '○', color: '#EF4444' },  // 未了（赤）
+      { status: 'completed', label: '●', color: '#10B981' }    // 完了（緑）
+    ]
+
+    const statusSelectionNodes = statusOptions.map((option, index) => {
+      const angle = (index - 1) * 45 + 90 // 45°, 90°, 135°（下方向に展開、より広い角度）
+      const distance = 60 // ボタンからの距離を増やす
+      const x = statusButtonPos.x + distance * Math.cos(angle * Math.PI / 180)
+      const y = statusButtonPos.y + distance * Math.sin(angle * Math.PI / 180)
+
+      return createVirtualNode({
+        id: `virtual-status-option-${taskId}-${option.status}`,
+        type: 'status_button', // ボタンノードと同じタイプに
+        area: taskNode.area,
+        title: option.label,
+        position: { x, y },
+        metadata: {
+          parentId: `virtual-task-status-${taskId}`, // ステータスボタンを親として設定
+          taskId: taskId, // タスクIDも保持
+          status: option.status,
+          color: option.color,
+          buttonType: 'select-status',
+        },
+      })
+    })
+
+    // 既存のバーチャルノードに状態選択ノードを追加
+    setVirtualNodes([...virtualNodes, ...statusSelectionNodes])
+    setTaskStatusSelectionNode(taskId)
+    
+    // シミュレーションを再開
+    const simulation = (window as any).__d3Simulation
+    if (simulation) {
+      simulation.alpha(0.3).restart()
+    }
+  }
+
+  // 実際に状態を変更する関数
+  const handleSelectTaskStatus = async (taskId: string, newStatus: 'pending' | 'incomplete' | 'completed') => {
+    const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
+    if (!taskNode) return
+
+    // 現在の状態を保存（ロールバック用）
+    const oldStatus = taskNode.task_status
+
+    // 楽観的更新：即座にUIを更新
+    updateNode(taskId, {
+      task_status: newStatus,
+    })
+
+    // 状態選択ノードを削除
+    const statusNodes = virtualNodes.filter(node => !node.id.startsWith(`virtual-status-option-${taskId}`))
+    setVirtualNodes(statusNodes)
+    setTaskStatusSelectionNode(null)
+
+    // 全Taskが完了しているかチェック（楽観的）
+    if (newStatus === 'completed') {
+      setTimeout(() => {
+        checkAllTasksCompleted()
+      }, 500)
+    }
+
     try {
-      // 現在の状態から次の状態へ遷移（保留→未完了→完了）
-      const currentStatus = taskNode.task_status || 'pending'
-      const statusCycle = ['pending', 'incomplete', 'completed'] // 保留→未完了→完了
-      const currentIndex = statusCycle.indexOf(currentStatus)
-      const nextStatus = statusCycle[(currentIndex + 1) % statusCycle.length] as
-        | 'pending'
-        | 'incomplete'
-        | 'completed'
-
-      console.log('Changing status from', currentStatus, 'to', nextStatus)
-
-      // データベースを更新
+      // バックグラウンドでデータベースを更新
       const { error } = await supabase
         .from('nodes')
-        .update({ task_status: nextStatus })
+        .update({ task_status: newStatus })
         .eq('id', taskId)
 
       if (error) throw error
-
-      // ストアを更新
-      updateNode(taskId, {
-        task_status: nextStatus,
-      })
-
-      console.log('Task status updated successfully')
-
-      // ボタンノードは維持（状態変更後も継続して操作可能）
-
-      // 全Taskが完了しているかチェック
-      if (nextStatus === 'completed') {
-        setTimeout(() => {
-          console.log('Checking all tasks completed after status change')
-          checkAllTasksCompleted()
-        }, 500) // ストア更新を待つ（時間を長めに）
-      }
     } catch (error) {
       console.error('Failed to change task status:', error)
+      
+      // エラー時はロールバック
+      updateNode(taskId, {
+        task_status: oldStatus,
+      })
+
+      // 全Taskが完了チェックをキャンセル（ロールバック時）
+      if (newStatus === 'completed' && oldStatus !== 'completed') {
+        // 必要に応じて完了チェックを再実行
+        setTimeout(() => {
+          checkAllTasksCompleted()
+        }, 500)
+      }
     }
   }
 
@@ -500,8 +640,6 @@ export function GraphCanvas() {
     setVirtualNodes([])
     setShowTagButton(null)
 
-    // ユーザーに指示を表示
-    console.log('タスクリンクモード: 他のTaskノードをクリックして依存関係を作成してください')
   }
 
   // MVPノードを作成
@@ -509,67 +647,136 @@ export function GraphCanvas() {
     const taskNode = nodes.find((n) => n.id === taskId && n.type === 'task')
     if (!taskNode) return
 
-    try {
-      const taskPos =
-        typeof taskNode.position === 'object' && taskNode.position !== null
-          ? (taskNode.position as any)
-          : { x: 0, y: 0 }
+    const taskPos =
+      typeof taskNode.position === 'object' && taskNode.position !== null
+        ? (taskNode.position as any)
+        : { x: 0, y: 0 }
 
-      // Measureエリアの境界を取得
-      const measureBounds = getAreaBounds('measure')
+    // Measureエリアの境界を取得
+    const measureBounds = getAreaBounds('measure')
 
-      // MVPノードを作成
-      const { data: mvpNode, error } = await supabase
-        .from('nodes')
-        .insert({
-          type: 'mvp',
-          area: 'measure',
-          title: `${taskNode.title} - MVP`,
-          content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
-          position: {
-            x: taskPos.x,
-            y: measureBounds.minY + 200,
-          },
-          metadata: {
-            sourceTaskId: taskId,
-          },
-        })
-        .select()
-        .single()
+    // 一時的なIDとタイムスタンプを生成
+    const tempMvpId = `temp-mvp-${Date.now()}`
+    const tempEdgeId = `temp-edge-${Date.now()}`
+    const now = new Date().toISOString()
 
-      if (error) throw error
-
-      // エッジを作成（TaskからMVPへ）
-      const { data: edge } = await supabase
-        .from('edges')
-        .insert({
-          source_id: taskId,
-          target_id: mvpNode.id,
-          type: 'flow',
-        })
-        .select()
-        .single()
-
-      // ストアに追加
-      addNode(mvpNode)
-      if (edge) addEdge(edge)
-
-      // MVPノードを選択してエディタを開く
-      setSelectedNode(mvpNode)
-      setEditorNode(mvpNode)
-
-      // ボタンノードをクリア
-      setVirtualNodes([])
-      setShowTagButton(null)
-
-      // 全Taskが完了しているかチェック
-      setTimeout(() => {
-        console.log('Checking all tasks completed after MVP creation')
-        checkAllTasksCompleted()
-      }, 500) // ストア更新を待つ
-    } catch (error) {
-      console.error('Failed to create MVP:', error)
+    // MVPノードの位置をY軸の中央に設定（X軸はタスクの位置を基準）
+    const mvpPosition = {
+      x: taskPos.x,
+      y: (measureBounds.minY + measureBounds.maxY) / 2,
     }
+
+    // 楽観的更新：即座にMVPノードをUIに追加
+    const tempMvpNode: Node = {
+      id: tempMvpId,
+      type: 'mvp',
+      area: 'measure',
+      title: `${taskNode.title} - MVP`,
+      content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
+      position: mvpPosition,
+      metadata: {
+        sourceTaskId: taskId,
+      },
+      created_at: now,
+      updated_at: now,
+      size: null,
+      branch_id: null,
+      color: null,
+      inherited_kb_tags: null,
+      project_line_id: null,
+      vertical_order: null,
+      task_status: null,
+    }
+
+    const tempEdge: Edge = {
+      id: tempEdgeId,
+      source_id: taskId,
+      target_id: tempMvpId,
+      type: 'flow',
+      is_branch: false,
+      is_merge: false,
+      created_at: now,
+      branch_from: null,
+      merge_to: null,
+    }
+
+    // ストアに追加
+    addNode(tempMvpNode)
+    addEdge(tempEdge)
+
+    // MVPノードを選択してエディタを開く
+    setSelectedNode(tempMvpNode)
+    setEditorNode(tempMvpNode)
+
+    // ボタンノードをクリア
+    setVirtualNodes([])
+    setShowTagButton(null)
+
+    // バックグラウンドでDB作成
+    ;(async () => {
+      try {
+        // MVPノードを作成
+        const { data: mvpNode, error } = await supabase
+          .from('nodes')
+          .insert({
+            type: 'mvp',
+            area: 'measure',
+            title: `${taskNode.title} - MVP`,
+            content: `# ${taskNode.title} MVP\n\n## 概要\n\n## 主要機能\n\n## 成功指標\n`,
+            position: mvpPosition,
+            metadata: {
+              sourceTaskId: taskId,
+            },
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // エッジを作成（TaskからMVPへ）
+        const { data: edge } = await supabase
+          .from('edges')
+          .insert({
+            source_id: taskId,
+            target_id: mvpNode.id,
+            type: 'flow',
+          })
+          .select()
+          .single()
+
+        // 一時的なIDを実際のIDに置き換え
+        deleteNode(tempMvpId)
+        removeEdge(tempEdgeId)
+        addNode(mvpNode)
+        if (edge) addEdge(edge)
+
+        // 選択中のノードも更新
+        if (selectedNode?.id === tempMvpId) {
+          setSelectedNode(mvpNode)
+          setEditorNode(mvpNode)
+        }
+
+        // 全Taskが完了しているかチェック
+        setTimeout(() => {
+          console.log('Checking all tasks completed after MVP creation')
+          checkAllTasksCompleted()
+        }, 500) // ストア更新を待つ
+      } catch (error) {
+        console.error('Failed to create MVP in database:', error)
+        // エラー時は一時的なノードを削除
+        deleteNode(tempMvpId)
+        removeEdge(tempEdgeId)
+        
+        // 選択中のノードが一時MVPだった場合はタスクノードを選択
+        if (selectedNode?.id === tempMvpId) {
+          setSelectedNode(taskNode)
+          setEditorNode(taskNode)
+        }
+        
+        // 仮想ノードをクリア
+        setVirtualNodes([])
+      }
+    })()
   }
 
   // 計測期間を強制終了してLearnエリアに移行
@@ -689,20 +896,21 @@ export function GraphCanvas() {
     const researchNode = nodes.find((n) => n.id === researchId && n.type === 'research')
     if (!researchNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', researchId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(researchId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(researchId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete research:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', researchId)
+      } catch (error) {
+        console.error('Failed to delete research from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // ISTagノードを削除
@@ -710,20 +918,21 @@ export function GraphCanvas() {
     const isTagNode = nodes.find((n) => n.id === isTagId && n.type === 'is_tag')
     if (!isTagNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', isTagId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(isTagId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(isTagId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete IS tag:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', isTagId)
+      } catch (error) {
+        console.error('Failed to delete IS tag from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // Improvementノードを削除
@@ -731,20 +940,21 @@ export function GraphCanvas() {
     const improvementNode = nodes.find((n) => n.id === improvementId && n.type === 'improvement')
     if (!improvementNode) return
 
-    try {
-      // データベースから削除
-      await supabase.from('nodes').delete().eq('id', improvementId)
+    // 楽観的更新：即座にUIから削除
+    deleteNode(improvementId)
+    setSelectedNode(null)
+    setVirtualNodes([])
+    setShowTagButton(null)
 
-      // ストアから削除
-      deleteNode(improvementId)
-
-      // UIをリセット
-      setSelectedNode(null)
-      setVirtualNodes([])
-      setShowTagButton(null)
-    } catch (error) {
-      console.error('Failed to delete improvement:', error)
-    }
+    // バックグラウンドでDB削除
+    ;(async () => {
+      try {
+        await supabase.from('nodes').delete().eq('id', improvementId)
+      } catch (error) {
+        console.error('Failed to delete improvement from database:', error)
+        // TODO: エラー時の復元処理
+      }
+    })()
   }
 
   // 全Taskノードが完了しているかチェック
@@ -892,7 +1102,7 @@ export function GraphCanvas() {
         x: 1000, // 中央に配置
         y: buildBounds.minY + 100,
       },
-      task_status: 'pending' as const,
+      task_status: 'incomplete' as const,
       metadata: {
         proposalId: proposalId, // Proposalとの関連を保存
       },
@@ -1025,7 +1235,6 @@ export function GraphCanvas() {
           useGraphStore.getState().setLinkingMode(false)
           useGraphStore.getState().setLinkingSource(null)
 
-          console.log(`リンクを作成しました: ${linkingSource.title} → ${node.title}`)
         } catch (error) {
           console.error('Failed to create link:', error)
         }
@@ -1044,28 +1253,54 @@ export function GraphCanvas() {
           )
 
           if (existingEdge) {
-            console.log('既にリンクが存在します')
             // リンク作成モードを終了
             useGraphStore.getState().setLinkingMode(false)
             useGraphStore.getState().setLinkingSource(null)
             return
           }
 
-          // エッジを作成（依存関係）
-          const { data: edge, error } = await supabase
-            .from('edges')
-            .insert({
-              source_id: linkingSource.id,
-              target_id: node.id,
-              type: 'dependency',
-            })
-            .select()
-            .single()
-
-          if (error) throw error
-
+          // 楽観的更新：即座にエッジをUIに追加
+          const tempEdgeId = `temp-edge-${Date.now()}`
+          const now = new Date().toISOString()
+          const tempEdge: Edge = {
+            id: tempEdgeId,
+            source_id: linkingSource.id,
+            target_id: node.id,
+            type: 'dependency',
+            is_branch: false,
+            is_merge: false,
+            created_at: now,
+            branch_from: null,
+            merge_to: null,
+          }
+          
           // ストアに追加
-          addEdge(edge)
+          addEdge(tempEdge)
+
+          // バックグラウンドでDB作成
+          ;(async () => {
+            try {
+              const { data: edge, error } = await supabase
+                .from('edges')
+                .insert({
+                  source_id: linkingSource.id,
+                  target_id: node.id,
+                  type: 'dependency',
+                })
+                .select()
+                .single()
+
+              if (error) throw error
+
+              // 一時的なエッジを実際のエッジに置き換え
+              removeEdge(tempEdgeId)
+              addEdge(edge)
+            } catch (error) {
+              console.error('Failed to create dependency in database:', error)
+              // エラー時は一時的なエッジを削除
+              removeEdge(tempEdgeId)
+            }
+          })()
 
           // リンク作成モードを終了
           useGraphStore.getState().setLinkingMode(false)
@@ -1127,11 +1362,14 @@ export function GraphCanvas() {
       return
     } else if (node.id.startsWith('virtual-task-status-')) {
       const metadata = node.metadata as any
-      console.log('Status button clicked, metadata:', metadata)
       if (metadata?.parentId) {
-        handleChangeTaskStatus(metadata.parentId)
-      } else {
-        console.error('No parentId found in metadata')
+        handleChangeTaskStatus(metadata.parentId, node)
+      }
+      return
+    } else if (node.id.startsWith('virtual-status-option-')) {
+      const metadata = node.metadata as any
+      if (metadata?.taskId && metadata?.status) {
+        handleSelectTaskStatus(metadata.taskId, metadata.status)
       }
       return
     } else if (node.id.startsWith('virtual-task-link-')) {
@@ -1335,29 +1573,57 @@ export function GraphCanvas() {
               {visibleEdges.map((edge) => (
                 <GraphEdge key={edge.id} edge={edge} nodes={nodes} />
               ))}
+              
+              {/* 状態選択ノードとボタンの接続線 */}
+              {taskStatusSelectionNode && virtualNodes
+                .filter(node => node.id.startsWith(`virtual-status-option-${taskStatusSelectionNode}`))
+                .map(statusNode => {
+                  const statusButton = virtualNodes.find(n => n.id === `virtual-task-status-${taskStatusSelectionNode}`)
+                  if (!statusButton) return null
+                  
+                  const buttonPos = statusButton.position as { x: number; y: number }
+                  const nodePos = statusNode.position as { x: number; y: number }
+                  
+                  return (
+                    <Line
+                      key={`line-${statusNode.id}`}
+                      points={[buttonPos.x, buttonPos.y, nodePos.x, nodePos.y]}
+                      stroke="#9CA3AF"
+                      strokeWidth={1}
+                      dash={[5, 5]}
+                      opacity={0.5}
+                    />
+                  )
+                })}
             </Group>
 
             {/* 親ノードとボタンノードを繋ぐ点線（ノードの下に描画） */}
             {virtualNodes.length > 0 && selectedNode && (
               <Group>
-                {virtualNodes.map((buttonNode, index) => (
-                  <GraphEdge
-                    key={`virtual-edge-${index}`}
-                    edge={{
-                      id: `virtual-edge-${index}`,
-                      source_id: selectedNode.id,
-                      target_id: buttonNode.id,
-                      type: 'tag',
-                      // 仮想エッジのためのデフォルト値
-                      is_branch: false,
-                      is_merge: false,
-                      created_at: new Date().toISOString(),
-                      branch_from: null,
-                      merge_to: null,
-                    }}
-                    nodes={[...nodes, ...virtualNodes]}
-                  />
-                ))}
+                {virtualNodes
+                  .filter(buttonNode => {
+                    // 状態選択ノードは除外（これらは上で個別に線を描画済み）
+                    const metadata = buttonNode.metadata as any
+                    return metadata?.buttonType !== 'select-status'
+                  })
+                  .map((buttonNode, index) => (
+                    <GraphEdge
+                      key={`virtual-edge-${index}`}
+                      edge={{
+                        id: `virtual-edge-${index}`,
+                        source_id: selectedNode.id,
+                        target_id: buttonNode.id,
+                        type: 'tag',
+                        // 仮想エッジのためのデフォルト値
+                        is_branch: false,
+                        is_merge: false,
+                        created_at: new Date().toISOString(),
+                        branch_from: null,
+                        merge_to: null,
+                      }}
+                      nodes={[...nodes, ...virtualNodes]}
+                    />
+                  ))}
               </Group>
             )}
 

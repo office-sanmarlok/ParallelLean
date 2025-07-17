@@ -19,11 +19,20 @@ export function useUnifiedForceSimulation() {
           ? (node.position as any)
           : { x: 0, y: 0 }
 
-      return {
+      const simNode = {
         ...node,
         x: pos.x,
         y: pos.y,
       } as SimulationNode
+      
+      // 固定フラグがある場合は位置を固定
+      const metadata = node.metadata as any
+      if (metadata?.fixed) {
+        (simNode as any).fx = pos.x
+        ;(simNode as any).fy = pos.y
+      }
+      
+      return simNode
     })
 
     if (simulationNodes.length === 0) {
@@ -39,6 +48,12 @@ export function useUnifiedForceSimulation() {
     virtualNodes.forEach((vNode) => {
       const metadata = vNode.metadata as any
       if (metadata?.parentId) {
+        // 状態選択ノードの場合は、タスクノードではなくステータスボタンに接続
+        if (metadata.buttonType === 'select-status' && metadata.taskId) {
+          // 状態選択ノードはステータスボタンに接続済み（parentIdがステータスボタンID）
+          // そのまま仮想エッジを作成
+        }
+        
         virtualEdges.push({
           id: `virtual-edge-${vNode.id}`,
           source_id: metadata.parentId,
@@ -100,6 +115,11 @@ export function useUnifiedForceSimulation() {
             if (d.area === 'idea_stock' && (d.type === 'proposal' || d.type === 'research')) {
               return getNodeSize(d) / 2 + 30 // より大きな間隔を保つ
             }
+            // 状態選択ノードは固定位置のため衝突半径を小さくする
+            const metadata = (d as any).metadata
+            if (metadata?.buttonType === 'select-status') {
+              return getNodeSize(d) / 2 + 5
+            }
             return getNodeSize(d) / 2 + 10
           })
           .strength(collisionStrength)
@@ -141,7 +161,7 @@ export function useUnifiedForceSimulation() {
             }
             // Task間の依存関係は短めの距離
             if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
-              return 80  // 100 → 80 に短縮
+              return 40  // 80 → 60 にさらに短縮
             }
             
             // 同じエリア内の場合
@@ -184,7 +204,7 @@ export function useUnifiedForceSimulation() {
             
             // Task間の依存関係は強い結合
             if ((d as any).type === 'dependency' && source?.type === 'task' && target?.type === 'task') {
-              return 0.7  // 0.3 → 0.7 に強化
+              return 0.85  // 0.7 → 0.85 にさらに強化
             }
 
             // その他のエッジは弱い結合
@@ -230,6 +250,14 @@ export function useUnifiedForceSimulation() {
                 node.vy = (node.vy || 0) + yDiff * 0.1
               }
             }
+          }
+
+          // Measure/LearnエリアのMVPノード：Y軸の中央に引き寄せる
+          else if ((node.area === 'measure' || node.area === 'learn') && node.type === 'mvp') {
+            const centerY = (areaBounds.minY + areaBounds.maxY) / 2
+            const yDiff = centerY - (node.y || 0)
+            // Y軸方向にのみ中央に引き寄せる力を適用
+            node.vy = (node.vy || 0) + yDiff * 0.05 // 弱い力で中央に
           }
 
           // エリア境界内に制限（パディングを小さく）
