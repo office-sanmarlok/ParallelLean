@@ -12,6 +12,7 @@ interface GraphState {
   linkingMode: boolean
   linkingSource: Node | null
   virtualNodes: any[]
+  buildAreaMaxY: number | null
 
   setNodes: (nodes: Node[]) => void
   setEdges: (edges: Edge[]) => void
@@ -32,6 +33,8 @@ interface GraphState {
   setVirtualNodes: (virtualNodes: any[]) => void
   updateVirtualNode: (id: string, updates: Partial<any>) => void
 
+  setBuildAreaMaxY: (maxY: number | null) => void
+
   refreshData: () => void
 }
 
@@ -43,6 +46,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   linkingMode: false,
   linkingSource: null,
   virtualNodes: [],
+  buildAreaMaxY: null,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -80,6 +84,8 @@ export const useGraphStore = create<GraphState>((set) => ({
         node.id === id ? { ...node, ...updates } : node
       ),
     })),
+
+  setBuildAreaMaxY: (buildAreaMaxY) => set({ buildAreaMaxY }),
 
   refreshData: () => {
     // リフレッシュはuseGraphDataフックがリアルタイムで行うため空実装

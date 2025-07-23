@@ -47,7 +47,7 @@ export const NODE_SIZES = {
 }
 
 // エリアの境界を計算
-export function getAreaBounds(area: AreaType) {
+export function getAreaBounds(area: AreaType, buildAreaMaxY?: number | null) {
   const areaIndex = AREA_ORDER.indexOf(area)
   
   // 各エリアの開始Y座標を計算
@@ -56,8 +56,49 @@ export function getAreaBounds(area: AreaType) {
     startY += GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
   }
   
+  // Buildエリアの動的な高さ調整
+  if (area === 'build') {
+    const areaHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[area]
+    const defaultMaxY = startY + areaHeight - GRAPH_DIMENSIONS.padding
+    
+    // buildAreaMaxYが設定されていて、デフォルトの境界を超えている場合は拡張
+    const actualMaxY = buildAreaMaxY && buildAreaMaxY > defaultMaxY 
+      ? buildAreaMaxY + 100 // 余裕を持たせる
+      : defaultMaxY
+      
+    return {
+      minY: startY + GRAPH_DIMENSIONS.padding,
+      maxY: actualMaxY,
+      minX: GRAPH_DIMENSIONS.padding,
+      maxX: GRAPH_DIMENSIONS.width - GRAPH_DIMENSIONS.padding,
+    }
+  }
+  
+  // Measure、Learnエリアの位置調整
+  if (area === 'measure' || area === 'learn') {
+    // Buildエリアの実際の高さを考慮
+    const buildDefaultHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS['build']
+    const buildDefaultMaxY = GRAPH_DIMENSIONS.height * (AREA_HEIGHT_RATIOS['knowledge_base'] + AREA_HEIGHT_RATIOS['idea_stock']) + buildDefaultHeight
+    
+    // Buildエリアが拡張されている場合の追加の高さ
+    const buildExtension = buildAreaMaxY && buildAreaMaxY > buildDefaultMaxY - GRAPH_DIMENSIONS.padding
+      ? (buildAreaMaxY + 100) - (buildDefaultMaxY - GRAPH_DIMENSIONS.padding)
+      : 0
+      
+    // 調整されたstartYを計算
+    const adjustedStartY = startY + buildExtension
+    const areaHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[area]
+    
+    return {
+      minY: adjustedStartY + GRAPH_DIMENSIONS.padding,
+      maxY: adjustedStartY + areaHeight - GRAPH_DIMENSIONS.padding,
+      minX: GRAPH_DIMENSIONS.padding,
+      maxX: GRAPH_DIMENSIONS.width - GRAPH_DIMENSIONS.padding,
+    }
+  }
+  
+  // その他のエリア（KnowledgeBase、IdeaStock）
   const areaHeight = GRAPH_DIMENSIONS.height * AREA_HEIGHT_RATIOS[area]
-
   return {
     minY: startY + GRAPH_DIMENSIONS.padding,
     maxY: startY + areaHeight - GRAPH_DIMENSIONS.padding,
@@ -80,9 +121,10 @@ export function getInitialNodePosition(node: Node | ExtendedNode): { x: number; 
 // エリア制約を適用
 export function applyAreaConstraint(
   node: Node | ExtendedNode,
-  position: { x: number; y: number }
+  position: { x: number; y: number },
+  buildAreaMaxY?: number | null
 ): { x: number; y: number } {
-  const areaBounds = getAreaBounds(node.area)
+  const areaBounds = getAreaBounds(node.area, buildAreaMaxY)
 
   return {
     x: Math.max(areaBounds.minX, Math.min(position.x, areaBounds.maxX)),

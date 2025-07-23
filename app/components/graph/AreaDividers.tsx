@@ -1,7 +1,8 @@
 'use client'
 
 import { Line, Text, Group } from 'react-konva'
-import { AREA_HEIGHT_RATIOS, AREA_ORDER } from '@/app/lib/graph/layout'
+import { AREA_HEIGHT_RATIOS, AREA_ORDER, getAreaBounds } from '@/app/lib/graph/layout'
+import { useGraphStore } from '@/app/stores/graphStore'
 
 interface AreaDividersProps {
   width: number
@@ -17,32 +18,42 @@ const AREA_LABELS = {
 }
 
 export function AreaDividers({ width, height }: AreaDividersProps) {
-  // 各エリアの開始Y座標を計算
-  const getAreaStartY = (index: number) => {
-    let y = 0
-    for (let i = 0; i < index; i++) {
-      y += height * AREA_HEIGHT_RATIOS[AREA_ORDER[i]]
+  const { buildAreaMaxY } = useGraphStore()
+  
+  // 各エリアの動的な境界を取得
+  const getAreaY = (area: typeof AREA_ORDER[number]) => {
+    const bounds = getAreaBounds(area, buildAreaMaxY)
+    return {
+      minY: bounds.minY,
+      maxY: bounds.maxY
     }
-    return y
   }
 
   return (
     <Group>
       {AREA_ORDER.map((area, index) => {
-        const y = getAreaStartY(index)
-        const areaHeight = height * AREA_HEIGHT_RATIOS[area]
-
+        const { minY } = getAreaY(area)
+        
+        // Measureエリアの境界線はBuildエリアが拡張されている場合はスキップ
+        const shouldSkipBorder = area === 'measure' && buildAreaMaxY && 
+          buildAreaMaxY > getAreaBounds('build').maxY - 100
+        
         return (
           <Group key={area}>
             {/* エリア境界線 */}
-            {index > 0 && (
-              <Line points={[0, y, width, y]} stroke="#E5E7EB" strokeWidth={1} dash={[10, 5]} />
+            {index > 0 && !shouldSkipBorder && (
+              <Line 
+                points={[0, minY - 30, width, minY - 30]} 
+                stroke="#E5E7EB" 
+                strokeWidth={1} 
+                dash={[10, 5]} 
+              />
             )}
 
             {/* エリアラベル */}
             <Text
               x={20}
-              y={y + 20}
+              y={minY}
               text={AREA_LABELS[area]}
               fontSize={16}
               fontStyle="bold"
@@ -51,6 +62,17 @@ export function AreaDividers({ width, height }: AreaDividersProps) {
           </Group>
         )
       })}
+      
+      {/* Build エリアの動的な下限線を表示 */}
+      {buildAreaMaxY && (
+        <Line 
+          points={[0, buildAreaMaxY + 100, width, buildAreaMaxY + 100]} 
+          stroke="#9CA3AF" 
+          strokeWidth={1} 
+          dash={[5, 3]}
+          opacity={0.5}
+        />
+      )}
     </Group>
   )
 }

@@ -7,7 +7,7 @@ import type { SimulationNode } from '@/app/lib/d3/forceSimulation'
 import { getAreaBounds, getNodeSize } from '@/app/lib/graph/layout'
 
 export function useUnifiedForceSimulation() {
-  const { nodes, edges, updateNode, virtualNodes, updateVirtualNode } = useGraphStore()
+  const { nodes, edges, updateNode, virtualNodes, updateVirtualNode, setBuildAreaMaxY, buildAreaMaxY } = useGraphStore()
   const simulationRef = useRef<d3.Simulation<SimulationNode, never> | null>(null)
 
   useEffect(() => {
@@ -95,8 +95,8 @@ export function useUnifiedForceSimulation() {
     const simulation = d3
       .forceSimulation<SimulationNode>(simulationNodes)
       // IdeaStockエリアのノード間に反発力を追加
-      .force('charge', d3.forceManyBody()
-        .strength((d: SimulationNode) => {
+      .force('charge', d3.forceManyBody<SimulationNode>()
+        .strength((d) => {
           // IdeaStockエリアのProposal/Researchは強い反発力
           if (d.area === 'idea_stock' && (d.type === 'proposal' || d.type === 'research')) {
             return -500 // 強い反発力でProposal同士を離す
@@ -216,7 +216,7 @@ export function useUnifiedForceSimulation() {
         simulationNodes.forEach((node) => {
           if (!node.x || !node.y) return
 
-          const areaBounds = getAreaBounds(node.area)
+          const areaBounds = getAreaBounds(node.area, buildAreaMaxY)
 
           // KnowledgeBaseエリアのノード（ボタンノード含む）：自由配置（力なし）
           if (node.area === 'knowledge_base') {
@@ -272,8 +272,18 @@ export function useUnifiedForceSimulation() {
 
     // シミュレーションのティックごとに位置を更新
     simulation.on('tick', () => {
+      let maxBuildY: number | null = null
+      
       simulationNodes.forEach((node) => {
         if (node.x !== undefined && node.y !== undefined) {
+          // Buildエリアのノードの最大Y座標を追跡
+          if (node.area === 'build' && node.type === 'task') {
+            const nodeBottomY = node.y + getNodeSize(node)
+            if (maxBuildY === null || nodeBottomY > maxBuildY) {
+              maxBuildY = nodeBottomY
+            }
+          }
+          
           // 位置が大きく変わった場合のみ更新
           const currentPos =
             typeof node.position === 'object' && node.position !== null
@@ -294,6 +304,11 @@ export function useUnifiedForceSimulation() {
           }
         }
       })
+      
+      // Buildエリアの最大Y座標を更新
+      if (maxBuildY !== null && maxBuildY !== buildAreaMaxY) {
+        setBuildAreaMaxY(maxBuildY)
+      }
     })
 
     simulationRef.current = simulation

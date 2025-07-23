@@ -45,6 +45,7 @@ export function GraphCanvas() {
     addEdge,
     updateNode,
     removeEdge,
+    buildAreaMaxY,
   } = useGraphStore()
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [scale, setScale] = useState(1)
@@ -653,7 +654,7 @@ export function GraphCanvas() {
         : { x: 0, y: 0 }
 
     // Measureエリアの境界を取得
-    const measureBounds = getAreaBounds('measure')
+    const measureBounds = getAreaBounds('measure', buildAreaMaxY)
 
     // 一時的なIDとタイムスタンプを生成
     const tempMvpId = `temp-mvp-${Date.now()}`
@@ -801,7 +802,7 @@ export function GraphCanvas() {
 
     try {
       // Learnエリアの境界を取得
-      const learnBounds = getAreaBounds('learn')
+      const learnBounds = getAreaBounds('learn', buildAreaMaxY)
 
       // 位置を計算（垂直に並べる）
       const mvpPosition = mvpNode.position as { x: number; y: number } | null
@@ -1089,7 +1090,7 @@ export function GraphCanvas() {
     if (!proposal) return
 
     // Buildエリアの境界を取得
-    const buildBounds = getAreaBounds('build')
+    const buildBounds = getAreaBounds('build', buildAreaMaxY)
 
     // 初期のTaskノードを1つ作成
     const task = {
