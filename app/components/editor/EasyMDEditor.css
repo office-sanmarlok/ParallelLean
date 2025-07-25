@@ -25,3 +25,200 @@
 .easy-mde-container .CodeMirror pre {
   cursor: text !important;
 }
+
+/* プレビューモードのスタイル */
+.easy-mde-container .editor-preview,
+.easy-mde-container .editor-preview-side {
+  background-color: #ffffff;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* プレビューモードの基本設定 */
+.easy-mde-container .editor-preview {
+  display: none;
+}
+
+/* プレビューアクティブ時 - EasyMDEが自動的に追加するクラスを利用 */
+.easy-mde-container .editor-preview-active {
+  display: block !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  z-index: 9 !important;
+  background-color: #ffffff !important;
+}
+
+/* プレビューがアクティブな時にCodeMirrorを隠す */
+.EasyMDEContainer .editor-preview-active ~ .CodeMirror {
+  display: none !important;
+}
+
+/* EasyMDEContainerの調整 */
+.EasyMDEContainer {
+  position: relative !important;
+}
+
+/* サイドバイサイドプレビューの調整 */
+.easy-mde-container .CodeMirror-sided {
+  width: 50% !important;
+}
+
+
+.easy-mde-container .editor-preview-active-side {
+  display: block !important;
+  width: 50% !important;
+}
+
+/* マークダウンプレビューのスタイル */
+.easy-mde-container .markdown-preview h1,
+.easy-mde-container .editor-preview h1,
+.easy-mde-container .editor-preview-side h1 {
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0.67em 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.3em;
+}
+
+.easy-mde-container .markdown-preview h2,
+.easy-mde-container .editor-preview h2,
+.easy-mde-container .editor-preview-side h2 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0.83em 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.3em;
+}
+
+.easy-mde-container .markdown-preview h3,
+.easy-mde-container .editor-preview h3,
+.easy-mde-container .editor-preview-side h3 {
+  font-size: 1.17em;
+  font-weight: bold;
+  margin: 1em 0;
+}
+
+.easy-mde-container .markdown-preview h4,
+.easy-mde-container .editor-preview h4,
+.easy-mde-container .editor-preview-side h4 {
+  font-size: 1em;
+  font-weight: bold;
+  margin: 1.33em 0;
+}
+
+.easy-mde-container .markdown-preview h5,
+.easy-mde-container .editor-preview h5,
+.easy-mde-container .editor-preview-side h5 {
+  font-size: 0.83em;
+  font-weight: bold;
+  margin: 1.67em 0;
+}
+
+.easy-mde-container .markdown-preview h6,
+.easy-mde-container .editor-preview h6,
+.easy-mde-container .editor-preview-side h6 {
+  font-size: 0.67em;
+  font-weight: bold;
+  margin: 2.33em 0;
+}
+
+.easy-mde-container .markdown-preview p,
+.easy-mde-container .editor-preview p,
+.easy-mde-container .editor-preview-side p {
+  margin: 1em 0;
+  line-height: 1.6;
+}
+
+.easy-mde-container .markdown-preview ul,
+.easy-mde-container .editor-preview ul,
+.easy-mde-container .editor-preview-side ul {
+  list-style-type: disc;
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.easy-mde-container .markdown-preview ol,
+.easy-mde-container .editor-preview ol,
+.easy-mde-container .editor-preview-side ol {
+  list-style-type: decimal;
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.easy-mde-container .markdown-preview li,
+.easy-mde-container .editor-preview li,
+.easy-mde-container .editor-preview-side li {
+  margin: 0.5em 0;
+}
+
+.easy-mde-container .markdown-preview blockquote,
+.easy-mde-container .editor-preview blockquote,
+.easy-mde-container .editor-preview-side blockquote {
+  border-left: 4px solid #ddd;
+  margin: 1em 0;
+  padding-left: 1em;
+  color: #666;
+}
+
+.easy-mde-container .markdown-preview code,
+.easy-mde-container .editor-preview code,
+.easy-mde-container .editor-preview-side code {
+  background-color: #f4f4f4;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  padding: 0.2em 0.4em;
+}
+
+.easy-mde-container .markdown-preview pre,
+.easy-mde-container .editor-preview pre,
+.easy-mde-container .editor-preview-side pre {
+  background-color: #f4f4f4;
+  border-radius: 3px;
+  overflow-x: auto;
+  padding: 1em;
+  margin: 1em 0;
+}
+
+.easy-mde-container .markdown-preview pre code,
+.easy-mde-container .editor-preview pre code,
+.easy-mde-container .editor-preview-side pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.easy-mde-container .markdown-preview table,
+.easy-mde-container .editor-preview table,
+.easy-mde-container .editor-preview-side table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.easy-mde-container .markdown-preview th,
+.easy-mde-container .markdown-preview td,
+.easy-mde-container .editor-preview th,
+.easy-mde-container .editor-preview td,
+.easy-mde-container .editor-preview-side th,
+.easy-mde-container .editor-preview-side td {
+  border: 1px solid #ddd;
+  padding: 0.5em;
+  text-align: left;
+}
+
+.easy-mde-container .markdown-preview th,
+.easy-mde-container .editor-preview th,
+.easy-mde-container .editor-preview-side th {
+  background-color: #f8f8f8;
+  font-weight: bold;
+}
+
+.easy-mde-container .markdown-preview img,
+.easy-mde-container .editor-preview img,
+.easy-mde-container .editor-preview-side img {
+  max-width: 100%;
+  height: auto;
+}
