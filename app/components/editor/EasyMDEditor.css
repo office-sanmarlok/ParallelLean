@@ -1,0 +1,27 @@
+/* EasyMDEのスタイル調整 */
+.easy-mde-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.easy-mde-container .EasyMDEContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.easy-mde-container .CodeMirror {
+  flex: 1;
+  height: auto;
+  cursor: text !important;
+}
+
+.easy-mde-container .CodeMirror-scroll {
+  cursor: text !important;
+}
+
+.easy-mde-container .CodeMirror pre {
+  cursor: text !important;
+}
