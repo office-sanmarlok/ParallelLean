@@ -1,13 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import CodeMirror from '@uiw/react-codemirror'
-import { markdown } from '@codemirror/lang-markdown'
-import { oneDark } from '@codemirror/theme-one-dark'
 import { createClient } from '@/app/lib/supabase/client'
 import type { Node, Edge } from '@/src/types/database'
 import { extractTagsFromContent } from '@/app/lib/graph/tagExtractor'
 import { useGraphStore } from '@/app/stores/graphStore'
+import { EasyMDEditor } from './EasyMDEditor'
 
 interface MDEditorProps {
   node: Node | null
@@ -291,7 +289,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'
-              e.currentTarget.style.color = '#6b7280'
+              e.currentTarget.style.color = '#9ca3af'
             }}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -315,7 +313,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
               marginBottom: '8px',
             }}
           >
-            <span style={{ fontSize: '14px', color: '#6b7280' }}>Tags:</span>
+            <span style={{ fontSize: '14px', color: '#9ca3af' }}>Tags:</span>
             {tags.map((tag, index) => (
               <div
                 key={index}
@@ -363,6 +361,8 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
                 borderRadius: '4px',
                 fontSize: '14px',
                 outline: 'none',
+                backgroundColor: '#ffffff',
+                color: '#111827',
               }}
             />
             <button
@@ -389,7 +389,7 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
           style={{
             marginTop: '12px',
             fontSize: '12px',
-            color: '#6b7280',
+            color: '#9ca3af',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -401,14 +401,20 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
       </div>
 
       {/* Editor */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <CodeMirror
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        <EasyMDEditor
           value={content}
-          height="100%"
-          theme={oneDark}
-          extensions={[markdown()]}
           onChange={(value) => setContent(value)}
-          style={{ height: '100%' }}
+          nodeId={node.id}
+          placeholder={
+            node.type === 'memo' ? 'Write your memo here...' :
+            node.type === 'proposal' ? 'Describe your proposal...' :
+            node.type === 'research' ? 'Document your research findings...' :
+            node.type === 'task' ? 'Describe the task...' :
+            node.type === 'mvp' ? 'Detail your MVP...' :
+            node.type === 'improvement' ? 'Describe the improvement...' :
+            'Write your content here...'
+          }
         />
       </div>
     </div>
