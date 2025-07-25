@@ -148,21 +148,17 @@ export function MDEditor({ node, onClose }: MDEditorProps) {
       )
 
       if (edge) {
-        // 楽観的更新：即座にUIから削除
-        removeEdge(edge.id)
-        setTags(tags.filter((t) => t !== tagToRemove))
-
         try {
-          // バックグラウンドでデータベースから削除
+          // データベースから削除
           const { error } = await supabase.from('edges').delete().eq('id', edge.id)
           
           if (error) throw error
+
+          // 成功した場合のみUIを更新
+          removeEdge(edge.id)
+          setTags(tags.filter((t) => t !== tagToRemove))
         } catch (error) {
           console.error('Failed to remove tag:', error)
-          
-          // エラー時はロールバック
-          addEdge(edge)
-          setTags([...tags, tagToRemove])
         }
       }
     }
