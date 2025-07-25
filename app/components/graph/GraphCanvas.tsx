@@ -75,6 +75,18 @@ export function GraphCanvas() {
   
   // ノード位置の自動保存を有効化
   useNodePositionPersist()
+  
+  // ノード数の変化を監視してアニメーションを再開
+  const prevNodesLengthRef = useRef(nodes.length)
+  const prevVirtualNodesLengthRef = useRef(virtualNodes.length)
+  useEffect(() => {
+    if (nodes.length !== prevNodesLengthRef.current || 
+        virtualNodes.length !== prevVirtualNodesLengthRef.current) {
+      setIsSimulationActive(true)
+      prevNodesLengthRef.current = nodes.length
+      prevVirtualNodesLengthRef.current = virtualNodes.length
+    }
+  }, [nodes.length, virtualNodes.length])
 
   // ビューポートの計算
   const getViewport = () => {
@@ -896,18 +908,30 @@ export function GraphCanvas() {
 
   // アニメーションループ（最適化版）
   useEffect(() => {
-    if (!isSimulationActive) return
-
     const animate = () => {
-      if (layerRef.current) {
-        layerRef.current.batchDraw()
-      }
-      if (isSimulationActive) {
+      const simulation = (window as any).__d3Simulation
+      
+      // シミュレーションのalpha値をチェック
+      if (simulation && simulation.alpha() > simulation.alphaMin()) {
+        // シミュレーションがまだアクティブな場合のみ描画
+        if (layerRef.current) {
+          layerRef.current.batchDraw()
+        }
         animationFrameRef.current = requestAnimationFrame(animate)
+      } else {
+        // シミュレーションが安定したらアニメーションを停止
+        setIsSimulationActive(false)
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current)
+          animationFrameRef.current = undefined
+        }
       }
     }
 
-    animate()
+    // シミュレーションがアクティブな場合のみアニメーションを開始
+    if (isSimulationActive) {
+      animate()
+    }
 
     return () => {
       if (animationFrameRef.current) {
@@ -1418,7 +1442,10 @@ export function GraphCanvas() {
                   onClick={() => handleNodeClick(node)}
                   onDblClick={() => handleNodeDblClick(node)}
                   selected={selectedNode?.id === node.id}
-                  onDragStart={() => setIsNodeDragging(true)}
+                  onDragStart={() => {
+                    setIsNodeDragging(true)
+                    setIsSimulationActive(true) // ドラッグ開始時にアニメーションを再開
+                  }}
                   onDragEnd={() => setIsNodeDragging(false)}
                 />
               ))}
