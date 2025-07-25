@@ -1180,6 +1180,16 @@ export function GraphCanvas() {
       return
     }
 
+    // 既に選択されているノードがクリックされた場合
+    if (selectedNode && selectedNode.id === node.id) {
+      // エディタが必要なノードタイプの場合はエディタを開く
+      const editableTypes = ['memo', 'proposal', 'research', 'task', 'mvp', 'improvement']
+      if (editableTypes.includes(node.type)) {
+        setEditorNode(node)
+        return
+      }
+    }
+
     // 既に選択されているノード以外がクリックされた場合、ボタンノードを削除
     if (selectedNode && selectedNode.id !== node.id) {
       setShowTagButton(null)
@@ -1261,11 +1271,17 @@ export function GraphCanvas() {
     }
   }
 
-  // ダブルクリックで新規ノード作成ボタンを表示
+  // ダブルクリックで新規ノード作成ボタンを表示またはエディタを閉じる
   const handleStageDblClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     // 背景がダブルクリックされた場合のみ処理
     const stage = e.target.getStage()
     if (!stage) return
+
+    // エディタが開いている場合は閉じる
+    if (editorNode) {
+      setEditorNode(null)
+      return
+    }
 
     const pointer = stage.getPointerPosition()
     if (!pointer) return
