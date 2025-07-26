@@ -1,866 +1,595 @@
-# ParallelLean マルチワークスペース実装設計書
+# ParallelLean Multi-Workspace Feature Design Document
 
-## 1. 概要
+## Overview
 
-このドキュメントは、ParallelLeanにマルチワークスペース機能を実装するための詳細な技術設計を定義します。各ユーザーは1つのワークスペースをオーナーとして作成でき、無制限のワークスペースにメンバーとして参加できます。
+This document presents the technical design for implementing multi-workspace functionality in ParallelLean. The design enables users to create and manage isolated project environments while maintaining the core graph-based visualization and lean startup methodology workflow.
 
-## 2. アーキテクチャ概要
+### Key Design Decisions
 
-### 2.1 システム全体構成
+1. **One Owner Per User Constraint**: Implemented at the database level to ensure data consistency and simplify ownership management
+2. **UUID-based Invite System**: Using workspace UUID as invite code for simplicity and security
+3. **Row-Level Security (RLS)**: Leveraging Supabase RLS for data isolation between workspaces
+4. **Granular Permission System**: Three-tier permission model (read-only, full-edit, area-specific) for flexible access control
+5. **Minimal Migration Impact**: Additive changes to existing schema to preserve current functionality
+
+### Research Findings
+
+- **Supabase RLS Best Practices**: RLS policies provide robust data isolation when properly configured with workspace_id filtering
+- **UUID Normalization**: Case-insensitive and hyphen-flexible UUID handling improves user experience
+- **Performance Considerations**: Workspace-scoped indexes and connection pooling are critical for multi-tenant performance
+- **Real-time Sync**: Supabase Realtime channels can be scoped to workspace level for efficient updates
+
+## Architecture
+
+### System Architecture
 
 ```mermaid
 graph TB
-    subgraph "Frontend (Next.js App Router)"
-        A[Home Page] --> B[Workspace Selector]
-        B --> C[Graph View]
-        B --> D[Workspace Settings]
-        C --> E[Node Editor]
-        D --> F[Member Management]
+    subgraph "Client Layer"
+        A[Next.js App Router]
+        B[WorkspaceProvider Context]
+        C[Zustand Store]
+        D[Valtio Store]
     end
     
-    subgraph "State Management"
-        G[Zustand Store] --> H[Workspace Context]
-        H --> I[User Permissions]
-        J[Valtio Store] --> K[Graph State]
+    subgraph "API Layer"
+        E[Supabase Client SDK]
+        F[Edge Functions]
+        G[RLS Policies]
     end
     
-    subgraph "Backend (Supabase)"
-        L[PostgreSQL] --> M[RLS Policies]
-        M --> N[Workspace Isolation]
-        O[Realtime] --> P[Workspace-scoped Updates]
-        Q[Auth] --> R[User Session]
+    subgraph "Data Layer"
+        H[PostgreSQL]
+        I[Realtime Subscriptions]
+        J[Auth Service]
     end
     
-    C --> G
-    C --> J
-    G --> L
-    J --> O
-    A --> Q
+    A --> B
+    B --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    E --> G
+    G --> H
+    E --> I
+    E --> J
+    
+    style B fill:#f9f,stroke:#333,stroke-width:4px
+    style G fill:#ff9,stroke:#333,stroke-width:4px
 ```
 
-### 2.2 データフロー
+### Data Flow Architecture
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant S as Supabase
-    participant DB as Database
-    participant RT as Realtime
+    participant User
+    participant Frontend
+    participant Auth
+    participant RLS
+    participant Database
+    participant Realtime
 
-    U->>F: ログイン
-    F->>S: 認証リクエスト
-    S->>F: セッション確立
+    User->>Frontend: Login
+    Frontend->>Auth: Authenticate
+    Auth-->>Frontend: Session Token
     
-    F->>DB: ワークスペース一覧取得
-    DB->>F: 参加中のワークスペース
+    User->>Frontend: Select Workspace
+    Frontend->>Frontend: Set workspace context
     
-    U->>F: ワークスペース選択
-    F->>F: workspaceIdをコンテキストに設定
+    Frontend->>RLS: Request workspace data
+    RLS->>RLS: Verify membership
+    RLS->>Database: Query with workspace_id filter
+    Database-->>Frontend: Filtered data
     
-    F->>DB: ワークスペースデータ取得
-    Note over DB: RLSでworkspace_idをフィルタ
-    DB->>F: フィルタ済みデータ
+    Frontend->>Realtime: Subscribe to workspace channel
+    Realtime-->>Frontend: Real-time updates
     
-    F->>RT: ワークスペースチャンネル購読
-    RT->>F: リアルタイム更新
+    User->>Frontend: Create/Edit node
+    Frontend->>RLS: Verify permissions
+    RLS->>Database: Execute operation
+    Database->>Realtime: Broadcast change
+    Realtime-->>Frontend: Update other clients
 ```
 
-## 3. データベース設計
+### Security Architecture
 
-### 3.1 新規テーブル
+- **Authentication**: Supabase Auth with JWT tokens
+- **Authorization**: RLS policies enforce workspace membership and permissions
+- **Data Isolation**: All queries automatically filtered by workspace_id
+- **Session Management**: 401 responses trigger automatic redirect to home
 
-#### workspaces テーブル
-```sql
-CREATE TABLE workspaces (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 50),
-  owner_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  
-  -- 招待コード（UUID形式）
-  invite_code UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  
-  -- メタデータ
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- 制約：1ユーザー1オーナーワークスペース
-  CONSTRAINT one_owner_workspace_per_user UNIQUE(owner_id)
-);
-```
+## Components and Interfaces
 
-#### workspace_members テーブル
-```sql
-CREATE TYPE member_role AS ENUM ('owner', 'member');
-CREATE TYPE member_permission AS ENUM ('read_only', 'full_edit', 'area_specific');
-
-CREATE TABLE workspace_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role member_role NOT NULL,
-  permission member_permission NOT NULL DEFAULT 'read_only',
-  
-  -- エリア別権限（permission = 'area_specific'の場合のみ使用）
-  area_permissions JSONB DEFAULT '{}' CHECK (
-    permission != 'area_specific' OR (
-      area_permissions ? 'knowledge_base' AND
-      area_permissions ? 'idea_stock' AND
-      area_permissions ? 'build' AND
-      area_permissions ? 'measure' AND
-      area_permissions ? 'learn'
-    )
-  ),
-  
-  -- メタデータ
-  joined_at TIMESTAMPTZ DEFAULT NOW(),
-  last_accessed_at TIMESTAMPTZ DEFAULT NOW(),
-  
-  -- 制約
-  CONSTRAINT unique_member_per_workspace UNIQUE(workspace_id, user_id),
-  CONSTRAINT owner_has_full_permission CHECK (
-    role != 'owner' OR permission = 'full_edit'
-  )
-);
-```
-
-### 3.2 既存テーブルの修正
-
-#### 全てのデータテーブルにworkspace_idを追加
-
-```sql
--- nodes テーブル
-ALTER TABLE nodes ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE nodes ALTER COLUMN workspace_id SET NOT NULL;
-
--- edges テーブル
-ALTER TABLE edges ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE edges ALTER COLUMN workspace_id SET NOT NULL;
-
--- project_lines テーブル
-ALTER TABLE project_lines ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE project_lines ALTER COLUMN workspace_id SET NOT NULL;
-
--- 他のテーブルも同様に修正
-ALTER TABLE area_transitions ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE project_reports ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE kpi_data ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE attachments ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
-```
-
-### 3.3 インデックス
-
-```sql
--- ワークスペース検索の高速化
-CREATE INDEX idx_workspace_members_user ON workspace_members(user_id);
-CREATE INDEX idx_workspace_members_workspace ON workspace_members(workspace_id);
-CREATE INDEX idx_workspaces_owner ON workspaces(owner_id);
-CREATE INDEX idx_workspaces_invite_code ON workspaces(invite_code);
-
--- 既存テーブルのworkspace_idインデックス
-CREATE INDEX idx_nodes_workspace ON nodes(workspace_id);
-CREATE INDEX idx_edges_workspace ON edges(workspace_id);
--- 他のテーブルも同様
-```
-
-### 3.4 RLS（Row Level Security）ポリシー
-
-```sql
--- ワークスペーステーブル
-CREATE POLICY "Users can view workspaces they belong to"
-  ON workspaces FOR SELECT
-  USING (
-    auth.uid() = owner_id OR
-    EXISTS (
-      SELECT 1 FROM workspace_members
-      WHERE workspace_id = workspaces.id
-      AND user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Only owners can update workspace"
-  ON workspaces FOR UPDATE
-  USING (auth.uid() = owner_id);
-
-CREATE POLICY "Only owners can delete workspace"
-  ON workspaces FOR DELETE
-  USING (auth.uid() = owner_id);
-
--- ノードテーブル（例）
-CREATE POLICY "Users can view nodes in their workspaces"
-  ON nodes FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM workspace_members
-      WHERE workspace_id = nodes.workspace_id
-      AND user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Users can create/update nodes based on permissions"
-  ON nodes FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM workspace_members wm
-      WHERE wm.workspace_id = nodes.workspace_id
-      AND wm.user_id = auth.uid()
-      AND (
-        wm.permission = 'full_edit' OR
-        (wm.permission = 'area_specific' AND
-         (wm.area_permissions->>(nodes.area::text))::boolean = true)
-      )
-    )
-  );
-```
-
-## 4. API設計
-
-### 4.1 Supabase Functions（エッジ関数）
-
-#### ワークスペース作成
-```typescript
-// /supabase/functions/create-workspace
-interface CreateWorkspaceRequest {
-  name: string
-}
-
-interface CreateWorkspaceResponse {
-  workspace: {
-    id: string
-    name: string
-    invite_code: string
-  }
-}
-
-export async function handler(req: Request): Promise<Response> {
-  const { name } = await req.json()
-  const userId = req.headers.get('x-user-id')
-  
-  // 既存のオーナーワークスペースチェック
-  const existingOwned = await supabase
-    .from('workspaces')
-    .select('id')
-    .eq('owner_id', userId)
-    .single()
-  
-  if (existingOwned.data) {
-    return new Response(
-      JSON.stringify({ error: '既に1つのワークスペースのオーナーです' }),
-      { status: 400 }
-    )
-  }
-  
-  // ワークスペース作成
-  const workspace = await supabase
-    .from('workspaces')
-    .insert({ name, owner_id: userId })
-    .select()
-    .single()
-  
-  // オーナーをメンバーとして追加
-  await supabase
-    .from('workspace_members')
-    .insert({
-      workspace_id: workspace.data.id,
-      user_id: userId,
-      role: 'owner',
-      permission: 'full_edit'
-    })
-  
-  return new Response(JSON.stringify({ workspace: workspace.data }))
-}
-```
-
-#### ワークスペース参加
-```typescript
-// /supabase/functions/join-workspace
-interface JoinWorkspaceRequest {
-  invite_code: string
-}
-
-export async function handler(req: Request): Promise<Response> {
-  const { invite_code } = await req.json()
-  const userId = req.headers.get('x-user-id')
-  
-  // 招待コードの正規化（ハイフン除去、小文字化）
-  const normalizedCode = invite_code.replace(/-/g, '').toLowerCase()
-  
-  // ワークスペース検索
-  const workspace = await supabase
-    .from('workspaces')
-    .select('id, name')
-    .ilike('invite_code', normalizedCode)
-    .single()
-  
-  if (!workspace.data) {
-    return new Response(
-      JSON.stringify({ error: '無効な招待コードです' }),
-      { status: 404 }
-    )
-  }
-  
-  // 既存メンバーチェック
-  const existing = await supabase
-    .from('workspace_members')
-    .select('id')
-    .eq('workspace_id', workspace.data.id)
-    .eq('user_id', userId)
-    .single()
-  
-  if (existing.data) {
-    return new Response(
-      JSON.stringify({ error: '既にこのワークスペースのメンバーです' }),
-      { status: 400 }
-    )
-  }
-  
-  // メンバー追加
-  await supabase
-    .from('workspace_members')
-    .insert({
-      workspace_id: workspace.data.id,
-      user_id: userId,
-      role: 'member',
-      permission: 'read_only'
-    })
-  
-  return new Response(JSON.stringify({ workspace: workspace.data }))
-}
-```
-
-### 4.2 クライアントサイドAPI
+### Core Components
 
 ```typescript
-// /app/lib/supabase/workspaces.ts
-import { supabase } from './client'
-
-export interface Workspace {
-  id: string
-  name: string
-  owner_id: string
-  invite_code: string
-  role: 'owner' | 'member'
-  permission: 'read_only' | 'full_edit' | 'area_specific'
-  area_permissions?: Record<string, boolean>
-  last_accessed_at: string
+// WorkspaceProvider Interface
+interface IWorkspaceProvider {
+  currentWorkspace: Workspace | null;
+  permissions: IPermissions;
+  setCurrentWorkspace: (workspace: Workspace) => void;
+  switchWorkspace: (workspaceId: string) => Promise<void>;
 }
 
-export async function getMyWorkspaces(): Promise<Workspace[]> {
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  const { data, error } = await supabase
-    .from('workspace_members')
-    .select(`
-      workspace:workspaces!inner(*),
-      role,
-      permission,
-      area_permissions,
-      last_accessed_at
-    `)
-    .eq('user_id', user.id)
-    .order('last_accessed_at', { ascending: false })
-  
-  if (error) throw error
-  
-  return data.map(item => ({
-    ...item.workspace,
-    role: item.role,
-    permission: item.permission,
-    area_permissions: item.area_permissions,
-    last_accessed_at: item.last_accessed_at
-  }))
+// Permission System Interface
+interface IPermissions {
+  canEdit: (area?: AreaType) => boolean;
+  canDelete: () => boolean;
+  canManageMembers: () => boolean;
+  canUpdateSettings: () => boolean;
 }
 
-export async function updateMemberPermission(
-  workspaceId: string,
-  memberId: string,
-  permission: string,
-  areaPermissions?: Record<string, boolean>
-): Promise<void> {
-  const { error } = await supabase
-    .from('workspace_members')
-    .update({
-      permission,
-      area_permissions: areaPermissions
-    })
-    .eq('workspace_id', workspaceId)
-    .eq('user_id', memberId)
-  
-  if (error) throw error
+// Workspace Management Interface
+interface IWorkspaceManager {
+  createWorkspace: (name: string) => Promise<Workspace>;
+  joinWorkspace: (inviteCode: string) => Promise<Workspace>;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
+  updateWorkspace: (workspaceId: string, updates: Partial<Workspace>) => Promise<void>;
+}
+
+// Member Management Interface
+interface IMemberManager {
+  addMember: (workspaceId: string, inviteCode: string) => Promise<Member>;
+  removeMember: (workspaceId: string, userId: string) => Promise<void>;
+  updatePermissions: (workspaceId: string, userId: string, permissions: MemberPermission) => Promise<void>;
+  listMembers: (workspaceId: string) => Promise<Member[]>;
 }
 ```
 
-## 5. コンポーネント設計
-
-### 5.1 コンポーネント階層
+### Component Hierarchy
 
 ```mermaid
 graph TD
-    A[App Layout] --> B[WorkspaceProvider]
-    B --> C[HomePage]
-    B --> D[WorkspacePage]
+    A[App Root] --> B[AuthProvider]
+    B --> C[WorkspaceProvider]
+    C --> D[Router]
     
-    C --> E[WorkspaceList]
-    C --> F[CreateWorkspaceButton]
-    C --> G[JoinWorkspaceButton]
+    D --> E[HomePage]
+    D --> F[WorkspacePage]
     
-    D --> H[WorkspaceHeader]
-    D --> I[GraphView]
-    D --> J[WorkspaceSettings]
+    E --> G[WorkspaceList]
+    E --> H[CreateWorkspaceModal]
+    E --> I[JoinWorkspaceModal]
     
-    H --> K[WorkspaceSelector]
-    H --> L[InviteCodeDisplay]
+    F --> J[GraphView]
+    F --> K[WorkspaceHeader]
+    F --> L[WorkspaceSettings]
     
-    J --> M[MemberList]
-    J --> N[PermissionEditor]
-    J --> O[DeleteWorkspaceButton]
+    K --> M[WorkspaceSelector]
+    K --> N[InviteCodeDisplay]
+    
+    L --> O[MemberList]
+    L --> P[PermissionEditor]
+    L --> Q[DangerZone]
+    
+    style C fill:#f9f,stroke:#333,stroke-width:4px
+    style J fill:#9ff,stroke:#333,stroke-width:4px
 ```
 
-### 5.2 主要コンポーネント
+### Key UI Components
 
-#### WorkspaceProvider
-```typescript
-// /app/components/providers/WorkspaceProvider.tsx
-interface WorkspaceContextValue {
-  currentWorkspace: Workspace | null
-  setCurrentWorkspace: (workspace: Workspace) => void
-  permissions: {
-    canEdit: (area?: string) => boolean
-    canDelete: () => boolean
-    canManageMembers: () => boolean
-  }
-}
+1. **WorkspaceList**: Displays user's workspaces with role indicators
+2. **WorkspaceSelector**: Dropdown for quick workspace switching
+3. **InviteCodeDisplay**: Shows UUID with copy button and toast feedback
+4. **PermissionEditor**: UI for managing member permissions with area-specific controls
+5. **MemberList**: Table view with search, filter, and bulk actions
 
-export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
-  
-  const permissions = useMemo(() => ({
-    canEdit: (area?: string) => {
-      if (!currentWorkspace) return false
-      if (currentWorkspace.permission === 'full_edit') return true
-      if (currentWorkspace.permission === 'read_only') return false
-      if (area && currentWorkspace.area_permissions) {
-        return currentWorkspace.area_permissions[area] ?? false
-      }
-      return false
-    },
-    canDelete: () => currentWorkspace?.role === 'owner',
-    canManageMembers: () => currentWorkspace?.role === 'owner'
-  }), [currentWorkspace])
-  
-  return (
-    <WorkspaceContext.Provider value={{ currentWorkspace, setCurrentWorkspace, permissions }}>
-      {children}
-    </WorkspaceContext.Provider>
-  )
-}
-```
+## Data Models
 
-#### HomePage
-```typescript
-// /app/(main)/page.tsx
-export default function HomePage() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [showJoinModal, setShowJoinModal] = useState(false)
-  const router = useRouter()
-  
-  useEffect(() => {
-    loadWorkspaces()
-  }, [])
-  
-  const loadWorkspaces = async () => {
-    const data = await getMyWorkspaces()
-    setWorkspaces(data)
-  }
-  
-  const hasOwnedWorkspace = workspaces.some(w => w.role === 'owner')
-  
-  return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-8">ワークスペース</h1>
-      
-      <div className="grid gap-4 mb-8">
-        {workspaces.map(workspace => (
-          <WorkspaceCard
-            key={workspace.id}
-            workspace={workspace}
-            onClick={() => router.push(`/workspace/${workspace.id}`)}
-          />
-        ))}
-      </div>
-      
-      <div className="flex gap-4">
-        <Button
-          onClick={() => router.push('/workspace/create')}
-          disabled={hasOwnedWorkspace}
-          title={hasOwnedWorkspace ? '既に1つのワークスペースのオーナーです' : ''}
-        >
-          オーナーとして新規作成
-        </Button>
-        
-        <Button
-          variant="secondary"
-          onClick={() => setShowJoinModal(true)}
-        >
-          メンバーとして参加
-        </Button>
-      </div>
-      
-      {showJoinModal && (
-        <JoinWorkspaceModal
-          onClose={() => setShowJoinModal(false)}
-          onSuccess={loadWorkspaces}
-        />
-      )}
-    </div>
-  )
-}
-```
+### Database Schema
 
-### 5.3 状態管理
-
-#### GraphStore の修正
-```typescript
-// /app/stores/graphStore.ts
-interface GraphStore {
-  workspaceId: string | null
-  nodes: Node[]
-  edges: Edge[]
-  // ... 既存のプロパティ
-  
-  setWorkspace: (workspaceId: string) => void
-  loadWorkspaceData: (workspaceId: string) => Promise<void>
-  createNode: (node: Partial<Node>) => Promise<void>
-  updateNode: (id: string, updates: Partial<Node>) => Promise<void>
-  deleteNode: (id: string) => Promise<void>
-}
-
-export const useGraphStore = create<GraphStore>((set, get) => ({
-  workspaceId: null,
-  nodes: [],
-  edges: [],
-  
-  setWorkspace: (workspaceId) => set({ workspaceId }),
-  
-  loadWorkspaceData: async (workspaceId) => {
-    const [nodes, edges] = await Promise.all([
-      supabase
-        .from('nodes')
-        .select('*')
-        .eq('workspace_id', workspaceId),
-      supabase
-        .from('edges')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-    ])
-    
-    set({
-      workspaceId,
-      nodes: nodes.data || [],
-      edges: edges.data || []
-    })
-  },
-  
-  createNode: async (node) => {
-    const { workspaceId } = get()
-    if (!workspaceId) throw new Error('No workspace selected')
-    
-    const { data, error } = await supabase
-      .from('nodes')
-      .insert({ ...node, workspace_id: workspaceId })
-      .select()
-      .single()
-    
-    if (error) throw error
-    
-    set(state => ({
-      nodes: [...state.nodes, data]
-    }))
-  },
-  
-  // ... 他のメソッドも同様に修正
-}))
-```
-
-## 6. リアルタイム同期
-
-### 6.1 Workspace スコープのリアルタイム購読
-
-```typescript
-// /app/hooks/useWorkspaceRealtime.ts
-export function useWorkspaceRealtime(workspaceId: string) {
-  const { nodes, edges, addNode, updateNode, deleteNode } = useGraphStore()
-  
-  useEffect(() => {
-    if (!workspaceId) return
-    
-    // ワークスペース固有のチャンネル
-    const channel = supabase
-      .channel(`workspace:${workspaceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'nodes',
-          filter: `workspace_id=eq.${workspaceId}`
-        },
-        (payload) => {
-          switch (payload.eventType) {
-            case 'INSERT':
-              addNode(payload.new)
-              break
-            case 'UPDATE':
-              updateNode(payload.new.id, payload.new)
-              break
-            case 'DELETE':
-              deleteNode(payload.old.id)
-              break
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'edges',
-          filter: `workspace_id=eq.${workspaceId}`
-        },
-        (payload) => {
-          // エッジの更新処理
-        }
-      )
-      .subscribe()
-    
-    return () => {
-      supabase.removeChannel(channel)
+```mermaid
+erDiagram
+    workspaces {
+        uuid id PK
+        text name
+        uuid owner_id FK
+        uuid invite_code
+        timestamptz created_at
+        timestamptz updated_at
     }
-  }, [workspaceId])
+    
+    workspace_members {
+        uuid id PK
+        uuid workspace_id FK
+        uuid user_id FK
+        enum role
+        enum permission
+        jsonb area_permissions
+        timestamptz joined_at
+        timestamptz last_accessed_at
+    }
+    
+    nodes {
+        uuid id PK
+        uuid workspace_id FK
+        text type
+        jsonb content
+        text area
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    edges {
+        uuid id PK
+        uuid workspace_id FK
+        uuid source_id FK
+        uuid target_id FK
+        text type
+    }
+    
+    workspaces ||--o{ workspace_members : has
+    workspaces ||--o{ nodes : contains
+    workspaces ||--o{ edges : contains
+    workspace_members }o--|| users : references
+    nodes ||--o{ edges : connects
+```
+
+### Type Definitions
+
+```typescript
+// Core Types
+type WorkspaceId = string; // UUID
+type UserId = string; // UUID
+type NodeId = string; // UUID
+
+// Enums
+enum MemberRole {
+  OWNER = 'owner',
+  MEMBER = 'member'
+}
+
+enum MemberPermission {
+  READ_ONLY = 'read_only',
+  FULL_EDIT = 'full_edit',
+  AREA_SPECIFIC = 'area_specific'
+}
+
+enum AreaType {
+  KNOWLEDGE_BASE = 'knowledge_base',
+  IDEA_STOCK = 'idea_stock',
+  BUILD = 'build',
+  MEASURE = 'measure',
+  LEARN = 'learn'
+}
+
+// Data Models
+interface Workspace {
+  id: WorkspaceId;
+  name: string;
+  ownerId: UserId;
+  inviteCode: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface WorkspaceMember {
+  id: string;
+  workspaceId: WorkspaceId;
+  userId: UserId;
+  role: MemberRole;
+  permission: MemberPermission;
+  areaPermissions?: Record<AreaType, boolean>;
+  joinedAt: Date;
+  lastAccessedAt: Date;
+}
+
+// Extended Node type with workspace
+interface WorkspaceNode extends Node {
+  workspaceId: WorkspaceId;
 }
 ```
 
-## 7. セキュリティとエラーハンドリング
+### Database Constraints
 
-### 7.1 API レベルのセキュリティ
+1. **One Owner Constraint**: `UNIQUE(owner_id)` on workspaces table
+2. **Member Uniqueness**: `UNIQUE(workspace_id, user_id)` on workspace_members
+3. **Owner Permission**: CHECK constraint ensuring owners have full_edit permission
+4. **Area Permission Validation**: CHECK constraint for area_specific permissions
+
+## Error Handling
+
+### Error Categories and Responses
 
 ```typescript
-// /app/lib/supabase/middleware.ts
-export async function withWorkspaceAccess(
-  workspaceId: string,
-  requiredPermission?: 'read' | 'write' | 'admin'
-) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
+// Error Type Definitions
+enum ErrorCode {
+  // Workspace Errors
+  WORKSPACE_NOT_FOUND = 'WORKSPACE_NOT_FOUND',
+  WORKSPACE_ALREADY_OWNED = 'WORKSPACE_ALREADY_OWNED',
+  WORKSPACE_ACCESS_DENIED = 'WORKSPACE_ACCESS_DENIED',
   
-  const { data: member } = await supabase
-    .from('workspace_members')
-    .select('role, permission, area_permissions')
-    .eq('workspace_id', workspaceId)
-    .eq('user_id', user.id)
-    .single()
+  // Member Errors
+  MEMBER_NOT_FOUND = 'MEMBER_NOT_FOUND',
+  MEMBER_ALREADY_EXISTS = 'MEMBER_ALREADY_EXISTS',
+  MEMBER_PERMISSION_DENIED = 'MEMBER_PERMISSION_DENIED',
   
-  if (!member) {
-    throw new Error('このワークスペースへのアクセス権限がありません')
+  // Invite Errors
+  INVITE_CODE_INVALID = 'INVITE_CODE_INVALID',
+  INVITE_CODE_EXPIRED = 'INVITE_CODE_EXPIRED',
+  
+  // Permission Errors
+  PERMISSION_INSUFFICIENT = 'PERMISSION_INSUFFICIENT',
+  PERMISSION_AREA_RESTRICTED = 'PERMISSION_AREA_RESTRICTED'
+}
+
+// Error Handler Implementation
+class WorkspaceErrorHandler {
+  static handle(error: any): ErrorResponse {
+    switch (error.code) {
+      case ErrorCode.WORKSPACE_NOT_FOUND:
+        return {
+          message: 'アクセスしようとしたワークスペースは存在しません',
+          action: 'redirect_home',
+          statusCode: 404
+        };
+      
+      case ErrorCode.WORKSPACE_ALREADY_OWNED:
+        return {
+          message: '既に1つのワークスペースのオーナーです',
+          action: 'show_toast',
+          statusCode: 400
+        };
+      
+      case ErrorCode.PERMISSION_INSUFFICIENT:
+        return {
+          message: 'この操作を実行する権限がありません',
+          action: 'show_toast',
+          statusCode: 403
+        };
+      
+      default:
+        return {
+          message: 'エラーが発生しました',
+          action: 'show_toast',
+          statusCode: 500
+        };
+    }
   }
-  
-  if (requiredPermission === 'admin' && member.role !== 'owner') {
-    throw new Error('この操作を実行する権限がありません')
-  }
-  
-  if (requiredPermission === 'write' && member.permission === 'read_only') {
-    throw new Error('このワークスペースでの編集権限がありません')
-  }
-  
-  return member
 }
 ```
 
-### 7.2 フロントエンドのエラーハンドリング
+### Client-Side Error Handling
 
 ```typescript
-// /app/components/ErrorBoundary.tsx
+// Global Error Boundary
 export function WorkspaceErrorBoundary({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  
   return (
     <ErrorBoundary
-      fallbackRender={({ error }) => {
-        if (error.message.includes('ワークスペースは存在しません')) {
-          router.push('/')
-          toast.error('アクセスしようとしたワークスペースは存在しません')
-          return null
+      fallbackRender={({ error, resetErrorBoundary }) => {
+        const errorResponse = WorkspaceErrorHandler.handle(error);
+        
+        if (errorResponse.action === 'redirect_home') {
+          router.push('/');
+          toast.error(errorResponse.message);
+          return null;
         }
         
-        if (error.status === 401) {
-          router.push('/')
-          return null
-        }
-        
-        return <ErrorFallback error={error} />
+        return (
+          <ErrorFallback 
+            error={error} 
+            resetErrorBoundary={resetErrorBoundary}
+            message={errorResponse.message}
+          />
+        );
       }}
     >
       {children}
     </ErrorBoundary>
-  )
+  );
 }
 ```
 
-## 8. マイグレーション戦略
+### API Error Responses
 
-### 8.1 既存データの移行
+All API endpoints return consistent error responses:
 
-```sql
--- 初期ワークスペース作成（既存データ用）
-INSERT INTO workspaces (id, name, owner_id)
-SELECT 
-  gen_random_uuid(),
-  '共有ワークスペース',
-  (SELECT id FROM auth.users LIMIT 1)
-;
-
--- 既存データにworkspace_idを設定
-UPDATE nodes SET workspace_id = (SELECT id FROM workspaces LIMIT 1);
-UPDATE edges SET workspace_id = (SELECT id FROM workspaces LIMIT 1);
--- 他のテーブルも同様
-
--- 全ユーザーをメンバーとして追加
-INSERT INTO workspace_members (workspace_id, user_id, role, permission)
-SELECT 
-  (SELECT id FROM workspaces LIMIT 1),
-  id,
-  CASE 
-    WHEN id = (SELECT owner_id FROM workspaces LIMIT 1) THEN 'owner'
-    ELSE 'member'
-  END,
-  'full_edit'
-FROM auth.users;
+```json
+{
+  "error": {
+    "code": "WORKSPACE_NOT_FOUND",
+    "message": "ワークスペースが見つかりません",
+    "details": {
+      "workspaceId": "123e4567-e89b-12d3-a456-426614174000"
+    }
+  },
+  "statusCode": 404
+}
 ```
 
-### 8.2 段階的ロールアウト
+## Testing Strategy
 
-1. **Phase 1**: データベーススキーマの更新とマイグレーション
-2. **Phase 2**: 認証・権限システムの実装
-3. **Phase 3**: UIコンポーネントの実装
-4. **Phase 4**: リアルタイム同期の更新
-5. **Phase 5**: 既存ユーザーへの通知と移行
-
-## 9. パフォーマンス最適化
-
-### 9.1 クエリ最適化
+### Unit Testing
 
 ```typescript
-// ワークスペース切り替え時の一括データ取得
-export async function loadWorkspaceData(workspaceId: string) {
-  const { data, error } = await supabase.rpc('get_workspace_data', {
-    p_workspace_id: workspaceId
-  })
+// Component Testing Example
+describe('WorkspaceProvider', () => {
+  it('should provide workspace context to children', () => {
+    const workspace = createMockWorkspace();
+    const { result } = renderHook(() => useWorkspace(), {
+      wrapper: ({ children }) => (
+        <WorkspaceProvider initialWorkspace={workspace}>
+          {children}
+        </WorkspaceProvider>
+      )
+    });
+    
+    expect(result.current.currentWorkspace).toEqual(workspace);
+  });
   
-  return {
-    nodes: data.nodes,
-    edges: data.edges,
-    projectLines: data.project_lines,
-    members: data.members
-  }
-}
+  it('should calculate permissions correctly', () => {
+    const memberWorkspace = createMockWorkspace({ 
+      role: 'member', 
+      permission: 'area_specific',
+      areaPermissions: { knowledge_base: true, idea_stock: false }
+    });
+    
+    const { result } = renderHook(() => useWorkspace(), {
+      wrapper: ({ children }) => (
+        <WorkspaceProvider initialWorkspace={memberWorkspace}>
+          {children}
+        </WorkspaceProvider>
+      )
+    });
+    
+    expect(result.current.permissions.canEdit('knowledge_base')).toBe(true);
+    expect(result.current.permissions.canEdit('idea_stock')).toBe(false);
+    expect(result.current.permissions.canManageMembers()).toBe(false);
+  });
+});
 ```
 
-### 9.2 キャッシュ戦略
+### Integration Testing
 
 ```typescript
-// /app/stores/workspaceCache.ts
-interface WorkspaceCache {
-  [workspaceId: string]: {
-    data: any
-    timestamp: number
-  }
-}
-
-const CACHE_DURATION = 5 * 60 * 1000 // 5分
-
-export const workspaceCache: WorkspaceCache = {}
-
-export function getCachedWorkspaceData(workspaceId: string) {
-  const cached = workspaceCache[workspaceId]
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return cached.data
-  }
-  return null
-}
-```
-
-## 10. テスト戦略
-
-### 10.1 統合テスト
-
-```typescript
-// /tests/workspace.test.ts
-describe('Workspace Management', () => {
-  test('ユーザーは1つのワークスペースのみ作成できる', async () => {
-    const user = await createTestUser()
+// API Integration Tests
+describe('Workspace API', () => {
+  it('should enforce one-owner-per-user constraint', async () => {
+    const user = await createTestUser();
     
-    // 最初のワークスペース作成
-    const workspace1 = await createWorkspace(user.id, 'Workspace 1')
-    expect(workspace1).toBeDefined()
+    // Create first workspace
+    const workspace1 = await createWorkspace(user.id, 'Workspace 1');
+    expect(workspace1).toBeDefined();
     
-    // 2つ目のワークスペース作成は失敗
+    // Attempt to create second workspace
     await expect(createWorkspace(user.id, 'Workspace 2'))
-      .rejects.toThrow('既に1つのワークスペースのオーナーです')
-  })
+      .rejects.toThrow('既に1つのワークスペースのオーナーです');
+  });
   
-  test('メンバーの権限が正しく適用される', async () => {
-    const owner = await createTestUser()
-    const member = await createTestUser()
-    const workspace = await createWorkspace(owner.id, 'Test Workspace')
+  it('should properly isolate data between workspaces', async () => {
+    const user1 = await createTestUser();
+    const user2 = await createTestUser();
     
-    // メンバー追加（読み取り専用）
-    await addMember(workspace.id, member.id, 'read_only')
+    const workspace1 = await createWorkspace(user1.id, 'Workspace 1');
+    const workspace2 = await createWorkspace(user2.id, 'Workspace 2');
     
-    // ノード作成は失敗
-    await expect(createNode(workspace.id, member.id, { type: 'memo' }))
-      .rejects.toThrow('編集権限がありません')
-  })
-})
+    // Create node in workspace1
+    const node = await createNode(workspace1.id, { type: 'memo', content: 'Test' });
+    
+    // Verify user2 cannot access workspace1 data
+    await expect(getNode(node.id, user2.id))
+      .rejects.toThrow('WORKSPACE_ACCESS_DENIED');
+  });
+});
 ```
 
-## 11. 監視とログ
-
-### 11.1 メトリクス収集
+### E2E Testing
 
 ```typescript
-// /app/lib/analytics/workspace.ts
-export function trackWorkspaceEvent(
-  event: 'created' | 'joined' | 'deleted' | 'permission_changed',
-  data: any
-) {
-  // Supabase Analytics or custom logging
-  supabase.from('workspace_events').insert({
-    event_type: event,
-    workspace_id: data.workspaceId,
-    user_id: data.userId,
-    metadata: data,
-    created_at: new Date()
-  })
-}
+// Playwright E2E Tests
+test.describe('Multi-workspace Flow', () => {
+  test('complete workspace creation and invitation flow', async ({ page }) => {
+    // Login as owner
+    await loginAsTestUser(page, 'owner@test.com');
+    
+    // Create workspace
+    await page.goto('/');
+    await page.click('text=オーナーとして新規作成');
+    await page.fill('input[name="workspace-name"]', 'Test Workspace');
+    await page.click('text=作成');
+    
+    // Verify workspace created
+    await expect(page).toHaveURL(/\/workspace\/.+/);
+    
+    // Get invite code
+    await page.click('text=招待コード');
+    const inviteCode = await page.textContent('[data-testid="invite-code"]');
+    
+    // Login as member in new context
+    const memberContext = await browser.newContext();
+    const memberPage = await memberContext.newPage();
+    await loginAsTestUser(memberPage, 'member@test.com');
+    
+    // Join workspace
+    await memberPage.goto('/');
+    await memberPage.click('text=メンバーとして参加');
+    await memberPage.fill('input[name="invite-code"]', inviteCode);
+    await memberPage.click('text=参加');
+    
+    // Verify member can access workspace
+    await expect(memberPage).toHaveURL(/\/workspace\/.+/);
+    await expect(memberPage.locator('[data-testid="workspace-role"]'))
+      .toHaveText('メンバー');
+  });
+});
 ```
 
-## 12. 今後の拡張性
+### Performance Testing
 
-### 12.1 将来的な機能拡張
+```typescript
+// Load Testing Scenarios
+describe('Workspace Performance', () => {
+  it('should handle workspace switching within 3 seconds', async () => {
+    const startTime = performance.now();
+    await switchWorkspace(workspaceId);
+    const endTime = performance.now();
+    
+    expect(endTime - startTime).toBeLessThan(3000);
+  });
+  
+  it('should efficiently query workspace data with proper indexes', async () => {
+    // Verify query plan uses indexes
+    const queryPlan = await analyzeQuery(`
+      SELECT * FROM nodes 
+      WHERE workspace_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `);
+    
+    expect(queryPlan).toContain('Index Scan using idx_nodes_workspace');
+  });
+});
+```
 
-- **ワークスペーステンプレート**: 事前定義されたノード構造
-- **ワークスペース間のデータ共有**: 特定のノードの共有機能
-- **高度な権限管理**: ノードレベルの権限設定
-- **ワークスペースアーカイブ**: 非アクティブなワークスペースの自動アーカイブ
-- **監査ログ**: 全ての操作の記録と履歴
+### Security Testing
 
-### 12.2 スケーラビリティ
+1. **Data Isolation Tests**: Verify no cross-workspace data leakage
+2. **Permission Tests**: Ensure all permission combinations work correctly
+3. **Session Tests**: Verify 401 handling and automatic redirects
+4. **SQL Injection Tests**: Validate all inputs are properly sanitized
+5. **RLS Policy Tests**: Confirm policies block unauthorized access
 
-- **データベースパーティショニング**: workspace_idによるパーティション
-- **読み取り専用レプリカ**: 読み取り負荷の分散
-- **CDN統合**: 静的アセットのキャッシュ
-- **エッジ関数の最適化**: リージョン別デプロイ
+## Implementation Considerations
 
-## まとめ
+### Migration Strategy
 
-このマルチワークスペース実装により、ParallelLeanは複数のチームやプロジェクトを独立して管理できるようになります。データの完全な分離、柔軟な権限管理、優れたパフォーマンスを実現しつつ、将来の拡張にも対応できる設計となっています。
+1. **Phase 1**: Deploy database schema changes with backward compatibility
+2. **Phase 2**: Deploy API changes with feature flags
+3. **Phase 3**: Deploy UI components behind feature flag
+4. **Phase 4**: Migrate existing data to default workspace
+5. **Phase 5**: Enable feature for all users
+6. **Phase 6**: Remove feature flags and old code paths
+
+### Performance Optimizations
+
+1. **Database Indexes**: Create indexes on workspace_id for all tables
+2. **Query Optimization**: Use prepared statements and connection pooling
+3. **Caching Strategy**: Cache workspace metadata in memory
+4. **Real-time Optimization**: Use workspace-specific channels
+5. **Lazy Loading**: Load workspace data on demand
+
+### Monitoring and Analytics
+
+1. **Metrics to Track**:
+   - Workspace creation rate
+   - Member invitation success rate
+   - Permission change frequency
+   - Error rates by type
+   - Performance metrics (query times, API latency)
+
+2. **Logging Strategy**:
+   - Log all workspace operations with user context
+   - Track permission changes for audit trail
+   - Monitor RLS policy violations
+
+### Future Extensibility
+
+The design supports future enhancements:
+- Workspace templates
+- Advanced permission models (node-level permissions)
+- Workspace archiving and restoration
+- Cross-workspace data sharing
+- Workspace activity feeds
+- Bulk member management
+- API tokens for workspace access
